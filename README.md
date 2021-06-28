@@ -6,8 +6,9 @@
 
 This class uses the DataGate API to read any DataGate file. 
 
-[See this report for a simple AVR example that uses DGFileReader.](https://github.com/ASNA/avr-DGReadFile-example)
-[See this repo for an a more complext AVR example that uses the DGFileReader to export a DG file to CSV.](https://github.com/ASNA/avr-version-of-export-dg-to-csv)
+[See this repo for a simple AVR example that uses `DGFileReader`.](https://github.com/ASNA/avr-DGReadFile-example)
+
+[See this repo for an a more complex AVR example that uses the `DGFileReader` to export a DG file to CSV.](https://github.com/ASNA/avr-version-of-export-dg-to-csv)
 
 ## AVR class to read any file -- with an event
 
