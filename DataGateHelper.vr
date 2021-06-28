@@ -1,0 +1,205 @@
+﻿Using System
+Using System.Diagnostics
+Using ASNA.DataGate.Client
+Using ASNA.DataGate.Common
+Using ASNA.DataGate.Providers
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass DGFileReader 
+    DclFld DGDB     Type(AdgConnection) 
+    DclFld DGFile   Type(FileAdapter)     
+    DclFld DGDS     Type(AdgDataSet) 
+
+    // If *False, the DataSet property contains only the current row.
+    // If *True, the DataSet property is populated with all rows read.
+    DclProp AccumulateRows Type(*Boolean) Access(*Public)  
+    BegProp DataTable Type(System.Data.DataTable) Access(*Public) 
+        BegGet
+            LeaveSr (DGDS *As System.Data.DataSet).Tables[0]
+        EndGet
+    EndProp 
+
+    DclProp ReadMilliseconds Type(*Integer4) Access(*Public) 
+    DclProp TotalRowsCounter Type(*Integer4) Access(*Public)
+
+    DclArray FieldNames Type(*String) Rank(1)
+    DclArray FieldTypes Type(*String) Rank(1) 
+
+    DclFld BlockingFactor Type(*Integer4) 
+
+    // Declare `AfterRowRead` event.
+    DclEvent AfterRowRead
+      DclSrParm Sender Type(*Object) 
+      DclSrParm e Type(AfterRowReadArgs) 
+      
+    // Constructor with API DB connection only.
+    BegConstructor Access(*Public) This(DBConnection, FileOpenAttr.OptimalBlockingFactor)
+        DclSrParm DBConnection Type(AdgConnection)
+    EndConstructor 
+
+    // Constructor with API DB connection and custom blocking factor.
+    BegConstructor Access(*Public) 
+        DclSrParm DBConnection Type(AdgConnection)
+        DclSrParm BlockingFactor Type(*Integer4) 
+
+        *This.DGDB = DBConnection 
+
+        Init(BlockingFactor)
+    EndConstructor 
+    
+    // Constructor with AVR DB connection only.
+    BegConstructor Access(*Public) This(DBConnection, FileOpenAttr.OptimalBlockingFactor)
+        DclSrParm DBConnection Type(ASNA.VisualRPG.Runtime.Database) 
+    EndConstructor 
+
+    // Constructor with AVR DB connection and custom blocking factor.
+    BegConstructor Access(*Public)
+        DclSrParm DBConnection Type(ASNA.VisualRPG.Runtime.Database) 
+        DclSrParm BlockingFactor Type(*Integer4) 
+
+        *This.DGDB = DBConnection.Connection
+
+        Init(BlockingFactor)
+    EndConstructor 
+
+    BegSr Init
+        DclSrParm BlockingFactor Type(*Integer4) 
+
+        *This.DGDB.Open()
+
+        // Default is to not accumulate rows in the DataSet property. 
+        *This.AccumulateRows = *False 
+        *This.BlockingFactor = BlockingFactor 
+    EndSr 
+  
+    // Open file for read-only use.        
+    BegSr OpenForRead Access(*Public) 
+        //DclSrParm DBName Type(*String) 
+        DclSrParm Library Type(*String) 
+        DclSrParm File Type(*String)
+
+        DclFld Index Type(*Integer4) 
+        DclFld FieldType Type(*String) 
+
+        // Instance file object.
+        DGFile = *New FileAdapter(DGDB, String.Format('{0}/{1}', Library, File))
+        // Set read-only with optimal record blocking.
+        DGFile.AccessMode = AccessMode.Read
+        DGFile.OpenAttributes.BlockingFactor = *This.BlockingFactor 
+        // Open a new AdgDataSet. 
+        Try 
+            DGFile.OpenNewAdgDataSet(*ByRef DGDS)
+        Catch ex Type(Exception)
+            Throw *New System.ArgumentException(String.Format('An error occurred trying to open {0}/{1}.', Library, File))
+        EndTry 
+
+        // Populate FieldNames array.
+        *This.FieldNames = *New *String[DGDS.Tables[0].Columns.Count]
+        For (Index = 0) To(DGDS.Tables[0].Columns.Count -1)
+            *This.FieldNames[Index] = +
+                DGDS.Tables[0].Columns[Index].ColumnName.ToString() 
+        EndFor
+
+        *This.FieldTypes = *New *String[DGDS.Tables[0].Columns.Count]
+        For (Index = 0) To(DGDS.Tables[0].Columns.Count -1)
+            FieldType = DGDS.Tables[0].Columns[Index].DataType.ToString().ToLower()
+            FieldType = FieldType.Replace('system.', String.Empty) 
+            *This.FieldTypes[Index] = FieldType                 
+        EndFor
+    EndSr
+
+    // Read entire file.
+    BegFunc ReadEntireFile Access(*Public) Type(DGFileReader) 
+        //DclSrParm DBName Type(*String) 
+        DclSrParm Library Type(*String) 
+        DclSrParm File Type(*String)
+
+        DclFld EventArgs Type(AfterRowReadArgs) 
+        DclFld sw Type(StopWatch) New()
+
+        sw.Start()
+          
+        // Open the DataGate file.
+        OpenForRead(Library, File) 
+        
+        EventArgs = *New AfterRowReadArgs(*Nothing, + 
+                                         *This.FieldNames, +
+                                         *This.FieldTypes, + 
+                                          0, +
+                                          DGFile.RecordCount)
+
+        *This.TotalRowsCounter = DGFile.RecordCount 
+
+        // Read all records. 
+        DoWhile ReadNextRecord(EventArgs)
+            // The AfterRowRead event is raised for each row read.
+        EndDo 
+
+        // Close file.
+        DGFile.Close() 
+
+        sw.Stop()
+
+        *This.ReadMilliseconds = sw.ElapsedMilliseconds
+
+        LeaveSr *This
+    EndFunc
+
+    // Read next available record. 
+    // Return *True if record read; otherwise return *False.
+    BegFunc ReadNextRecord Type(*Boolean)       
+        DclSrParm EventArgs Type(AfterRowReadArgs) 
+
+        // ReadSequential doesn't know about EOF--it throws a DataGate
+        // exception when there are no more records to read. 
+        // This function puts an EOF-friendly wrapper around ReadSequential.
+
+        // Don't accumulate rows in the DataSet.
+        If NOT *This.AccumulateRows
+            DGDS.Tables[0].Clear()
+        EndIF 
+            
+        Try
+            // Read a record.
+            DGFile.ReadSequential(DGDS, ReadSequentialMode.Next, LockRequest.Read)
+            EventArgs.DataRow = DGDS.ActiveRow
+            EventArgs.CurrentRowCounter += 1
+            // Raise AfterRowRead event.
+            AfterRowRead(*This, EventArgs)
+            LeaveSr *True
+        Catch DgEx Type(dgException) 
+            // If EOF, swallow exception and return *False, 
+            // which indicates EOF has been reached.
+            If (DgEx.Error = dgErrorNumber.dgEaEOF)
+                LeaveSr *False 
+            Else
+                // Otherwise rethrow error exception. 
+                Throw DgEx           
+            EndIf
+        EndTry    
+    EndFunc
+EndClass
+
+// Provides the `e` argument for the AfterRowRead event.
+BegClass AfterRowReadArgs Extends(System.EventArgs) Access(*Public)
+    DclFld DataRow Type(System.Data.DataRow) Access(*Public)  
+    DclArray FieldNames Type(*String) Rank(1) Access(*Public)
+    DclArray FieldTypes Type(*String) Rank(1) Access(*Public)
+    DclFld CurrentRowCounter Type(*Integer4) Access(*Public)
+    DclFld TotalRowsCounter Type(*Integer8) Access(*Public)
+
+    BegConstructor Access(*Public) 
+        DclSrParm DataRow  Type(System.Data.DataRow) 
+        DclSrParm FieldNames Type(*String) Rank(1)
+        DclSrParm FieldTypes Type(*String) Rank(1)
+        DclSrParm CurrentRowCounter Type(*Integer4) 
+        DclSrParm TotalRowsCounter Type(*Integer8) 
+        
+        *This.DataRow = DataRow
+        *This.FieldNames = FieldNames
+        *This.FieldTypes = FieldTypes
+        *This.CurrentRowCounter = CurrentRowCounter
+        *This.TotalRowsCounter = TotalRowsCounter  
+    EndConstructor
+EndClass

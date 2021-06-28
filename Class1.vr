@@ -1,0 +1,8 @@
+﻿Using System
+Using System.Text
+
+
+
+BegClass Class1 Access(*Public)
+
+EndClass
