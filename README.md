@@ -287,6 +287,8 @@ The field values returned through the `DataRow` argument are not strongly typed 
 
 An element from the `FieldTypes` array has the same ordinal position as an element from the `FieldNames` array. That is, for the third element in the `FieldTypes` array is the data type of the third element in the `FieldNames` array.
 
+In the 
+
 The field types reported are .NET types. For example, `string`, `decimal`, `datetime`, etc). Field types are always presented as lower case.
 
     DclFld Counter Type(*Integer4)
@@ -349,62 +351,105 @@ The section, "Accumulating the rows in a DataTable" from above explains the `DGF
 
 `DGFileReader` has an experimental feature that populates a custom class each time a record is read. This lets you accumulate a strongly-typed collection of custom classes. This experimental feature is an alternative to using `DGFileReader's` `AccumulateRows` and `DataTable` properties. 
 
-> Why is this experimental? I am pretty sure that it works but it hasn't been tested as thoroughly as the other features in `DGFileReader`. In fact, it was a 15 after-thought while writing these docs! Let me know if it works for you. So far, it is working for me. 
+Three properties enable this feature: 
 
-Consider a class that defines a `Customer` file like this: 
+* `CustomClassAssembly` - A set-only value that is the assembly that owns the custom class to populate. 
+* `CustomClassName` - A set-only string value that is the fully qualified name of the custom class to populate. 
+* `CustomClassInstance` - A read-only instance of the custom class with its properties populated by `DGFileReader` after each row is read. 
+
+> Why is this experimental? I am pretty sure that it works but it hasn't been tested as thoroughly as the other features in `DGFileReader`. In fact, it was a 30 minute after-thought while writing these docs! Let me know if it works for you. So far, it is working for me. 
+
+The intent with this example's use case is to quickly create a data source for 
+a dropdown list in ASP.NET. 
+
+Consider a `Customer` class that defines a subset of a customer file like this: 
 
     BegClass Customer Access(*Public)
         DclProp cmcustno    Type( *Packed ) Len( 9,0 )   Access(*Public)
         DclProp cmname      Type( *Char ) Len( 40 )      Access(*Public)
-        DclProp cmaddr1     Type( *Char ) Len( 35 )      Access(*Public)
-        DclProp cmcity      Type( *Char ) Len( 30 )      Access(*Public)
-        DclProp cmstate     Type( *Char ) Len( 2 )       Access(*Public)
-        DclProp cmcntry     Type( *Char ) Len( 2 )       Access(*Public)
-        DclProp cmpostcode  Type( *Char ) Len( 10 )      Access(*Public)
-        DclProp cmactive    Type( *Char ) Len( 1 )       Access(*Public)
-        DclProp cmfax       Type( *Packed ) Len( 10,0 )  Access(*Public)
-        DclProp cmphone     Type( *Char ) Len( 20 )      Access(*Public)
     EndClass
 
-Note that all properties are lower-case. This is important. `DGReadFile` will look up each field from a record read and assign a value to it. Its field look up is case-sensitive and assumes property names are lower case.
+There are many more fields in the customer file record, but this example only needs the `cmcustno` and `cmname` values. The `Customer` class is shown below. Note that all properties are lower-case. This is important. `DGReadFile` will look up each field from a record read and assign a value to matching properties in the custom class. Its field look up is case-sensitive and assumes property names are lower case. (Technically, what is case-sensitive is the .NET reflection that dynamically assigns a value to a class property.)
 
-> Technically, what is case-sensitive is the .NET reflection that dynamically assigns a value to a class property.
+> Be sure to use `DclProp` to define the class's properties. .NET reflection cannot populate fields, only properties. 
 
-The example below declares a single `Cust` instance of `Customer` and a collection of `Customer` named `Customers`.
+Before calling `DGFileReader's` `ReadEntireFile` method, its `Assembly` property is set to the currently executing assembly (which is the assembly that owns the custom class) and its `CustomClassName` property is set to the fully-qualified name of the custom class. 
 
-Before calling `DGFileReader's` `ReadEntireFile` method, the `Cust` instance is assigned to `DGFileReader's` `CustomClassInstance` property. For each row read, 
-any properties of the custom class that match field names from the record record will be populated with those field values. The custom class does not have to include all of the fields in the file. You can include only those you need. 
+A global collection of `Customer` is declared in the `Customers` field. After each row is read, this line in the `AfterRowRead` event handler:
 
-In the `AfterRowRead` handler, add the current `Cust` instance to the strongly-typed `Customers`
+    Customers.Add(*This.dgfr.CustomClassInstance *As Customer) 
 
-    DclDB DGDB 
+adds the implicitly-created instance of `Customer` to the `Customers` collection.
 
-    DclFld dgfr Type(DGFileReader) WithEvents(*Yes) 
-    DclFld Cust Type(Customer) 
-    DclFld Customers Type(List (*of Customer)) New()
+After `DGFileReader's` `ReadEntireFile` method runs, these four lines of code 
 
-	BegSr Run Access(*Public) 
+    dropdownlistCustomers.DataTextField = "cmname"
+    dropdownlistCustomers.DataValueField = "cmcustno"
+    dropdownlistCustomers.DataSource = Customers
+    dropdownlistCustomers.DataBind()
 
-        DGDB.DBName = "*Public/DG NET Local"
-        Connect DGDB 
-                
-        Cust = *New Customer()
+populate the ASP.NET DropdownList control.
 
-        *This.dgfr = *New DGFileReader(DGDB, 500)
+The full code is shown below: 
 
-        // Assign custom class.
-        *This.dgfr.CustomClassInstance = Cust
+    Using System.Collections.Generic 
+    Using System.Reflection 
+    Using ASNA.DataGateHelper
 
-        *This.dgfr.ReadEntireFile("examples", "cmastnew")
+    DclNameSpace MyApp 
+        
+    BegClass Index Partial(*Yes) Access(*Public) Extends(System.Web.UI.Page)
 
-        Disconnect DGDB 
-	EndSr
+        DclDB DGDB DBName("*Public/DG NET Local")
 
-    BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
-        DclSrParm Sender Type(*Object)
-        DclSrParm e Type(AfterRowReadArgs) 
+        DclFld dgfr Type(DGFileReader) WithEvents(*Yes) 
+        DclFld Customers Type(List (*of Customer)) New()
 
-        Customers.Add(Cust) 
-    EndSr 
+        BegSr Page_Load Access(*Private) Event(*This.Load)
+            DclSrParm sender Type(*Object)
+            DclSrParm e Type(System.EventArgs)
 
-The result is that after reading the file you have a `Customers` collection you can use to populate a bound control or do anything else with it you need.     
+            Connect DGDB 
+
+            If (NOT Page.IsPostBack)
+                PopulateCustomerInstance()
+            EndIf
+        EndSr
+
+        BegSr Page_Unload Access(*Private) Event(*This.Unload)
+            DclSrParm sender Type(*Object)
+            DclSrParm e Type(System.EventArgs)
+
+            Disconnect DGDB 
+        EndSr
+
+        BegSr PopulateCustomerInstance
+            *This.dgfr = *New DGFileReader(DGDB, 500)
+
+            *This.dgfr.Assembly = Assembly.GetExecutingAssembly()
+            *This.dgfr.CustomClassName = "MyApp.Customer"
+
+            *This.dgfr.ReadEntireFile("examples", "cmastnewL2")
+
+            dropdownlistCustomers.DataTextField = "cmname"
+            dropdownlistCustomers.DataValueField = "cmcustno"
+            dropdownlistCustomers.DataSource = Customers
+            dropdownlistCustomers.DataBind()
+        EndSR 
+
+        BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
+            DclSrParm Sender Type(*Object)
+            DclSrParm e Type(AfterRowReadArgs) 
+
+            Customers.Add(*This.dgfr.CustomClassInstance *As Customer) 
+        EndSr 
+
+    EndClass
+
+    BegClass Customer Access(*Public)
+        DclProp cmcustno    Type( *Packed ) Len( 9,0 )   Access(*Public)
+        DclProp cmname      Type( *Char ) Len( 40 )      Access(*Public)
+    EndClass 
+
+Like `DGFileReader's` ability to accumulate a file in a `DataTable`, use this feature carefully. A file with a million rows would suck the keys off of your keyboard as .NET tries to build a million row custom collection. 
+

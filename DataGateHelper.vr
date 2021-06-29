@@ -7,7 +7,7 @@ Using System.Reflection
 
 DclNamespace ASNA.DataGateHelper
 
-BegClass DGFileReader 
+BegClass DGFileReader Access(*Public) 
     DclFld DGDB     Type(AdgConnection) 
     DclFld DGFile   Type(FileAdapter)     
     DclFld DGDS     Type(AdgDataSet) 
@@ -15,16 +15,18 @@ BegClass DGFileReader
     // If *False, the DataSet property contains only the current row.
     // If *True, the DataSet property is populated with all rows read.
     DclProp AccumulateRows Type(*Boolean) Access(*Public)  
-    BegProp DataTable Type(System.Data.DataTable) Access(*Public) 
+    BegProp DataTable Type(System.Data.DataTable) Access(*Public) SetAccess(*Private) 
         BegGet
             LeaveSr (DGDS *As System.Data.DataSet).Tables[0]
         EndGet
     EndProp 
 
-    DclProp CustomClassInstance Type(System.Object) Access(*Public) 
+    DclProp CustomClassAssembly  Type(Assembly) Access(*Public) GetAccess(*Private) 
+    DclProp CustomClassName Type(*String) Access(*Public) GetAccess(*Private)
+    DclProp CustomClassInstance Type(*Object) Access(*Public) SetAccess(*Private)
 
-    DclProp ReadMilliseconds Type(*Integer4) Access(*Public) 
-    DclProp TotalRowsCounter Type(*Integer4) Access(*Public)
+    DclProp ReadMilliseconds Type(*Integer4) Access(*Public) SetAccess(*Private) 
+    DclProp TotalRowsCounter Type(*Integer4) Access(*Public) SetAccess(*Private) 
 
     DclArray FieldNames Type(*String) Rank(1)
     DclArray FieldTypes Type(*String) Rank(1) 
@@ -87,6 +89,7 @@ BegClass DGFileReader
 
         // Instance file object.
         DGFile = *New FileAdapter(DGDB, String.Format('{0}/{1}', Library, File))
+
         // Set read-only with optimal record blocking.
         DGFile.AccessMode = AccessMode.Read
         DGFile.OpenAttributes.BlockingFactor = *This.BlockingFactor 
@@ -171,6 +174,8 @@ BegClass DGFileReader
     BegFunc ReadNextRecord Type(*Boolean)       
         DclSrParm EventArgs Type(AfterRowReadArgs) 
 
+        DclFld type Type(Type) 
+
         // ReadSequential doesn't know about EOF--it throws a DataGate
         // exception when there are no more records to read. 
         // This function puts an EOF-friendly wrapper around ReadSequential.
@@ -185,6 +190,12 @@ BegClass DGFileReader
             DGFile.ReadSequential(DGDS, ReadSequentialMode.Next, LockRequest.Read)
             EventArgs.DataRow = DGDS.ActiveRow
             EventArgs.CurrentRowCounter += 1
+
+            If *This.CustomClassName <> *Nothing AND *This.CustomClassAssembly <> *Nothing 
+                type = *This.CustomClassAssembly.GetType(*This.CustomClassName, *True) 
+                *This.CustomClassInstance = Activator.CreateInstance(type) 
+                *This.PopulateClassInstance(DGDS.ActiveRow)
+            EndIf 
 
             If *This.CustomClassInstance <> *Nothing 
                 PopulateClassInstance(DGDS.ActiveRow) 

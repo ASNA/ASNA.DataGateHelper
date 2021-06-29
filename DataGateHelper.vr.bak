@@ -3,6 +3,7 @@ Using System.Diagnostics
 Using ASNA.DataGate.Client
 Using ASNA.DataGate.Common
 Using ASNA.DataGate.Providers
+Using System.Reflection 
 
 DclNamespace ASNA.DataGateHelper
 
@@ -19,6 +20,8 @@ BegClass DGFileReader
             LeaveSr (DGDS *As System.Data.DataSet).Tables[0]
         EndGet
     EndProp 
+
+    DclProp CustomClassInstance Type(System.Object) Access(*Public) 
 
     DclProp ReadMilliseconds Type(*Integer4) Access(*Public) 
     DclProp TotalRowsCounter Type(*Integer4) Access(*Public)
@@ -146,6 +149,23 @@ BegClass DGFileReader
         LeaveSr *This
     EndFunc
 
+    BegSr PopulateClassInstance 
+        DclSrParm DataRow Type(System.Data.DataRow) 
+
+        DclFld FieldValue Type(*Object) 
+        DclFld type Type(Type) 
+        DclFld prop Type(PropertyInfo) 
+
+        ForEach FieldName Type(*String) Collection(*This.FieldNames)
+            FieldValue = DataRow[FieldName] 
+            type = *This.CustomClassInstance.GetType()
+            prop = type.GetProperty(FieldName.ToLower()) 
+            If prop <> *Nothing
+                prop.SetValue(*This.CustomClassInstance, FieldValue, *Nothing) 
+            EndIf 
+        EndFor 
+    EndSr 
+
     // Read next available record. 
     // Return *True if record read; otherwise return *False.
     BegFunc ReadNextRecord Type(*Boolean)       
@@ -165,6 +185,11 @@ BegClass DGFileReader
             DGFile.ReadSequential(DGDS, ReadSequentialMode.Next, LockRequest.Read)
             EventArgs.DataRow = DGDS.ActiveRow
             EventArgs.CurrentRowCounter += 1
+
+            If *This.CustomClassInstance <> *Nothing 
+                PopulateClassInstance(DGDS.ActiveRow) 
+            EndIf 
+
             // Raise AfterRowRead event.
             AfterRowRead(*This, EventArgs)
             LeaveSr *True
