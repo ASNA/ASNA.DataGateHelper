@@ -343,3 +343,68 @@ The section, "Accumulating the rows in a DataTable" from above explains the `DGF
 
 * `ReadMilliseconds` - an integer presents the time taken, in milliseconds, to read the entire file (essentially timing how long the `ReadEntireFile` method took).
 * `TotalRowsCounter` - this is the same integer value as is available in the `AfterRowRead` event handler. 
+
+
+#### Experimental feature: Populate a custom class
+
+`DGFileReader` has an experimental feature that populates a custom class each time a record is read. This lets you accumulate a strongly-typed collection of custom classes. This experimental feature is an alternative to using `DGFileReader's` `AccumulateRows` and `DataTable` properties. 
+
+> Why is this experimental? I am pretty sure that it works but it hasn't been tested as thoroughly as the other features in `DGFileReader`. In fact, it was a 15 after-thought while writing these docs! Let me know if it works for you. So far, it is working for me. 
+
+Consider a class that defines a `Customer` file like this: 
+
+    BegClass Customer Access(*Public)
+        DclProp cmcustno    Type( *Packed ) Len( 9,0 )   Access(*Public)
+        DclProp cmname      Type( *Char ) Len( 40 )      Access(*Public)
+        DclProp cmaddr1     Type( *Char ) Len( 35 )      Access(*Public)
+        DclProp cmcity      Type( *Char ) Len( 30 )      Access(*Public)
+        DclProp cmstate     Type( *Char ) Len( 2 )       Access(*Public)
+        DclProp cmcntry     Type( *Char ) Len( 2 )       Access(*Public)
+        DclProp cmpostcode  Type( *Char ) Len( 10 )      Access(*Public)
+        DclProp cmactive    Type( *Char ) Len( 1 )       Access(*Public)
+        DclProp cmfax       Type( *Packed ) Len( 10,0 )  Access(*Public)
+        DclProp cmphone     Type( *Char ) Len( 20 )      Access(*Public)
+    EndClass
+
+Note that all properties are lower-case. This is important. `DGReadFile` will look up each field from a record read and assign a value to it. Its field look up is case-sensitive and assumes property names are lower case.
+
+> Technically, what is case-sensitive is the .NET reflection that dynamically assigns a value to a class property.
+
+The example below declares a single `Cust` instance of `Customer` and a collection of `Customer` named `Customers`.
+
+Before calling `DGFileReader's` `ReadEntireFile` method, the `Cust` instance is assigned to `DGFileReader's` `CustomClassInstance` property. For each row read, 
+any properties of the custom class that match field names from the record record will be populated with those field values. The custom class does not have to include all of the fields in the file. You can include only those you need. 
+
+In the `AfterRowRead` handler, add the current `Cust` instance to the strongly-typed `Customers`
+
+    DclDB DGDB 
+
+    DclFld dgfr Type(DGFileReader) WithEvents(*Yes) 
+    DclFld Cust Type(Customer) 
+    DclFld Customers Type(List (*of Customer)) New()
+
+	BegSr Run Access(*Public) 
+
+        DGDB.DBName = "*Public/DG NET Local"
+        Connect DGDB 
+                
+        Cust = *New Customer()
+
+        *This.dgfr = *New DGFileReader(DGDB, 500)
+
+        // Assign custom class.
+        *This.dgfr.CustomClassInstance = Cust
+
+        *This.dgfr.ReadEntireFile("examples", "cmastnew")
+
+        Disconnect DGDB 
+	EndSr
+
+    BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
+        DclSrParm Sender Type(*Object)
+        DclSrParm e Type(AfterRowReadArgs) 
+
+        Customers.Add(Cust) 
+    EndSr 
+
+The result is that after reading the file you have a `Customers` collection you can use to populate a bound control or do anything else with it you need.     
