@@ -6,22 +6,24 @@
 
 This class uses the DataGate API to read any DataGate file. 
 
-[See this repo for a simple AVR example that uses `DGFileReader`.](https://github.com/ASNA/avr-DGReadFile-example)
+[See this repo for a simple ASNA Visual RPG (AVR) example that uses `DGFileReader`.](https://github.com/ASNA/avr-DGReadFile-example)
 
 [See this repo for an a more complex AVR example that uses the `DGFileReader` to export a DG file to CSV.](https://github.com/ASNA/avr-version-of-export-dg-to-csv)
 
-## AVR class to read any file -- with an event
+[See this repo for an a more a C# version of the second AVR example mentioned above CSV.](https://github.com/ASNA/cs-version-of-export-dg-to-csv)
 
-This project provides a class named `DGFileReader` that lets you read any DataGate physical or logical file. This is a more flexible version [of the project provided here.](https://github.com/ASNA/generic-file-reader-simple). This project uses a custom event to provide flexible processing for each row read. 
+This project provides a class named `DGFileReader` that lets you read any DataGate physical or logical file dynamically at runtime. This is a more flexible version [of the project provided here.](https://github.com/ASNA/generic-file-reader-simple). This project uses a custom event to provide flexible processing for each row read. 
+
+You can use this class with either ASNA Visual RPG or with C#. For C# use, you'll need to manually add the ASNA.DataGate.Client and ASNA.VisualRPG.Runtime assemblies. In either case, you'll also need a DataGate client license to use this class. 
 
 ### The use case
 
-The primary use case of this version of `DGFileReader` is enabling AVR to open and read that is unknown to AVR at compile-time. Files are usually known at compile-time and references are backed into your AVR program with `DclDiskFile` objects for each file needed. 
+The primary use case of `DGFileReader` is to be able to open and read a file that is unknown at compile-time. For AVR, files are usually known at compile-time and references are backed into your AVR program with `DclDiskFile` objects for each file needed. 
 
 Consider the need to do a complex query on the IBM i and get that data back into AVR, perhaps to export that data to Excel or populate a grid or a list. 
-Lately, I've been using AVR to call RPG programs with AVR that do interesting things with SQL and write the results to QTEMP. This output file and its structure are known (and in fact probably don't even exist) to AVR at compile-time; you can't define them with a `DclDiskFile` at compile-time. 
+Lately, I've been using AVR to call RPG programs with AVR that do interesting things with SQL and write the results to QTEMP. This output file and its structure are not known (and in fact probably don't even exist) to AVR at compile-time; you can't define them with a `DclDiskFile` at compile-time. 
 
-It's amazing how quickly AVR can call an RPG program to use SQL to write results to a work file -- and then open that work file. The process sounds a little convolute, but AVR can make an RPG program call in a matter of milliseconds and this process is very effective.
+It's amazing how quickly AVR can call an RPG program to use SQL to write results to a work file -- and then open that work file. The process sounds a little convoluted, but AVR can make an RPG program call in a matter of milliseconds and this process is very effective.
 
 At first, I resisted writing the SQL results to a temporary file, for two reasons:
 
@@ -35,11 +37,6 @@ Because the "program call/write a work file/read the work file" workflow doesn't
 Beyond working with files unknown at compile-time, `DGFileReader` may also be of value to files that you do know about at compile-time. For example, let's say you have a small file of order types and you need to put fields from that file into a drop-down box. `DGFileReader` is great for little things like that. 
 
 Anytime you need to read a file quickly, of known structure or not (but especially of unknown structure), consider using `DGFileReader.`
-
-
-Singleton DB pattern
-Record blocking 
-AVR versus API performance 
 
 ### Look ma, a custom event
 
@@ -129,7 +126,7 @@ EndClass
 
 ### Accumulating the rows in a DataTable
 
-There is a little bonus feature in `DGFileReader` that might be handy in some situations. By default, its `ReadEntireFile` loops over the file and reports each row read through its `AfterRowRead` event and does not accumulate the rows read. That way, you can read a very large file with minimal memory impact; by default there is only a single row in memory at any one time. 
+By default, its `ReadEntireFile` loops over the file and reports each row read through its `AfterRowRead` event and does not accumulate the rows read. That way, you can read a very large file with minimal memory impact; by default there is only a single row in memory at any one time. 
 
 However, there might be times, for files of rational size, where you want `ReadEntireFile` to collect the entire file. For example, you might want to fill a list or a grid with the contents of a small file. To do that with `DGFileReader` set its `AccumulateRows` property to `*True` before calling `ReadEntireFile`. After that call, the entire data read is present in `DGFileReader's` `DataTable` property. The code below shows how you might use `DGFileReader` to populate a `DataGridView` in a Windows form app.
 
@@ -167,7 +164,182 @@ Using the fluent syntax, you could do this (the line continuation is for publish
     datagridviewCustomers.DataSource = + 
         dgfr.ReadEntireFile('*Public/DG Net Local', 'Examples', 'CMastNewL2').DataTable 
 
-Other things to discuss:
-* Two DG connections (AVR and API)
-* Blocking factor
-* Event args
+#### Instancing `DFFileReader`
+
+The `DGFileReader` does not establish it's own DataGate server connection. Rather, it expects a DataGate server connection be through its constructor. This pattern of passing a DataGate connection to child class is called the [Singleton DB pattern.](https://asna.com/us/tech/kb/doc/singleton-db-pattern)
+
+In the DataGate realm, there are two distinct database connections:
+
+* AVR establishes connections through its `DclDB` object.
+* If you are using C# with the DataGate API, the API establishes connections through the `ASNA.DataGate.Client.AdgConnection` object. 
+
+`DGFileReader` has overloads to accept either connection type (so that it can easily be used with either AVR or C#)
+
+> Note 
+
+To instance the `DGFileReader` with C#:
+
+    ASNA.DataGateHelper.DGFileReader dgfr;
+
+    public void Run() 
+    {
+
+        ASNA.DataGate.Client.AdgConnection apiDGDB = 
+            new ASNA.DataGate.Client.AdgConnection("*Public/DG NET Local");
+        dgfr = new ASNA.DataGateHelper.DGFileReader(apiDGDB);
+
+        ... do work
+
+        apiDGDB.Close();
+    }        
+
+To instance the `DGFileReader` with AVR:
+
+    DclDB DGDB 
+    DclFld dgfr Type(DGFileReader) WithEvents(*Yes) 
+
+    BegSr Run Access(*Public)
+        DGDB.DBName = "*Public/DG NET Local"
+        Connect DGDB 
+        *This.dgfr = *New DGFileReader(DGDB)
+
+        ... do work
+
+        Disconnect DGDB
+    EndSr         
+
+`DGFileReader` opens the connection passed to it if necessary, but it does not close it. Closing the connection passed to `DGFileReader` is the responsibility of the parent class. 
+
+
+#### Assigning the `DGFileReader` `AfterRowRead` event handler
+
+With C#, explicitly assign the event handler after you've instanced `DGFileReader`.
+
+    ASNA.DataGateHelper.DGFileReader dgfr;
+
+    public void Run() 
+    {
+
+        ASNA.DataGate.Client.AdgConnection apiDGDB = 
+            new ASNA.DataGate.Client.AdgConnection("*Public/DG NET Local");
+        this.dgfr = new ASNA.DataGateHelper.DGFileReader(apiDGDB);
+
+        // Explicitly assign the event handler.
+        this.dgfr.AfterRowRead += OnAfterRowRead;
+
+        // Read all rows of the `examples/cmastnew` file.
+        this.dgfr.ReadEntireFile("examples", "cmastnew");
+
+        apiDGDB.Close();
+    }        
+
+    void OnAfterRowRead(System.Object sender, 
+                        ASNA.DataGateHelper.AfterRowReadArgs e)
+    {
+        ... do work with values in `e`.
+    }
+
+With AVR, implicitly assign the event handler with the `Event` keyword of the event handler routine.
+
+    DclDB DGDB 
+    DclFld dgfr Type(DGFileReader) WithEvents(*Yes) 
+
+    BegSr Run Access(*Public)
+        DGDB.DBName = "*Public/DG NET Local"
+        Connect DGDB 
+        *This.dgfr = *New DGFileReader(DGDB)
+
+        // Read all rows of the `examples/cmastnew` file.
+        this.dgfr.ReadEntireFile("examples", "cmastnew")
+
+        Disconnect DGDB
+    EndSr         
+
+    // Use the `Event` keyword to implicitly assign the event handler.
+    BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
+        DclSrParm Sender Type(*Object)
+        DclSrParm e Type(AfterRowReadArgs) 
+
+        ... do work with values in `e`.
+    EndSr
+
+#### Row data available in the `AfterRowRead` event handler 
+
+Row data is available in the `AfterRowRead` event handler in its `e` argument. The data available is:
+
+    e.DataRow -- a System.Data.DataRow representing the row read.
+    e.FieldNames -- an array of field names in the DataRow.
+    e.FieldTypes -- an array of field types in the DataRow.
+    e.CurrentRowCounter -- The current row number. 
+    e.TotalRowsCounter -- the total row numbers. 
+
+##### To iterate through each field name and get each field value:
+
+    ForEach FieldName Type(*String) Collection(e.FieldNames)
+        Console.WriteLine("Field {0} has a value of {1}", +
+                                    FieldName, +
+                                    e.DataRow[FieldName].ToString())
+    EndFor 
+
+The field values returned through the `DataRow` argument are not strongly typed (they are `System.Objects`) and need to be cast appropriately. 
+
+##### To see field types as you iterate through the field names
+
+An element from the `FieldTypes` array has the same ordinal position as an element from the `FieldNames` array. That is, for the third element in the `FieldTypes` array is the data type of the third element in the `FieldNames` array.
+
+The field types reported are .NET types. For example, `string`, `decimal`, `datetime`, etc). Field types are always presented as lower case.
+
+    DclFld Counter Type(*Integer4)
+    DclFld FieldType Type(*String)
+
+    Counter = 0 
+
+    // Show field names and corresponding data types on the first row only.
+    If e.CurrentRowCounter = 1
+        ForEach FieldName Type(*String) Collection(e.FieldNames)
+                FieldType = e.FieldTypes[Counter].ToString()    
+                Console.WriteLine("Field {0} is type {1}", FieldName, FieldType)
+                Counter +=1 
+        EndFor
+    EndIf 
+
+##### Row counter values
+
+The `e.CurrentRowCounter` provides the one-based current row number and the `e.TotalRowsCounter` provides the number of rows in the table. Interrogating `e.CurrentCounter` provides a good way to perform first-time initialization in the AfterRowRead event handler. 
+
+    If e.CurrentRowCounter = 1 
+        // Do some initalization work.
+    EndIf 
+
+    ForEach FieldName Type(*String) Collection(e.FieldNames)
+        Console.WriteLine("Field {0} has a value of {1}", +
+                                    FieldName, +
+                                    e.DataRow[FieldName].ToString())
+    EndFor 
+
+#### Record blocking 
+
+`DGFileReader` opens the file it uses for read-only use with a default DataGate record blocking factor (that it calculates at runtime) Its constructor takes an optional second argument that lets you specify a custom value to use for recording blocking. 
+
+In the constructor examples below, `nnn` is the value to use for record blocking. Setting this to a value of up to 1000 _may_ help performance. A values higher than 1000 will likely impede performance. 
+
+> Setting the record blocking argument too high will almost certainly impede performance. You can use the `ReadMillisconds` property (explained below) to monitor the impact of changing the record blocking factor.
+
+With C#
+
+        this.dgfr = new ASNA.DataGateHelper.DGFileReader(apiDGDB, nnn);
+
+With AVRL
+
+        *This.dgfr = *New DGFileReader(DGDB, nnn)
+
+
+#### Other `DGFileReader` properties
+
+* `AccumulateRows` - a Boolean value that if true causes the records read to be collected in a System.Data.DataTable. The default is false.
+* `DataTable` - the DataTable populated if `AccumulateRows` is true. 
+
+The section, "Accumulating the rows in a DataTable" from above explains the `DGFileREader's` `AccumulateRows` and `DataTable` properties in more detail. Other properties available in `DGFileReader` after having read the file are: 
+
+* `ReadMilliseconds` - an integer presents the time taken, in milliseconds, to read the entire file (essentially timing how long the `ReadEntireFile` method took).
+* `TotalRowsCounter` - this is the same integer value as is available in the `AfterRowRead` event handler. 
