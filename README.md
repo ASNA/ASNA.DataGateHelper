@@ -1,6 +1,8 @@
 ## ANSA.DataGateHelper namespace
 
 
+This DLL targets .NET 4.7.2. Be sure any consuming projects are at least set to that version or higher. 
+
 ## The DGFileReader and ListItemHelper classes
 
 The `DGFileReader` class uses the DataGate API to read any DataGate file from beginning to end. The primary use case of `DGFileReader` is to be able to open and read a file on demand in your AVR code without needing a compile-time `DclDiskFile.`
@@ -143,7 +145,6 @@ The result is a uniquely-named table created in QTEMP with a page of full of dat
 
 Immediately after the program call AVR uses the `DGFileReader` class to populate a strongly-typed list which is then displayed on a Web page--all in about 500 milliseconds. The technique can also use SQL LIKE clause to fine-tune row selection. 
 
-
 ### Populating a ListItemCollection 
 
 Along with the `DGFileReader` is a `ListItemHelper` class. This class provides a `LoadList` method that very quickly populates a [ListItemCollection](https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.webcontrols.listitemcollection?view=netframework-4.8) with [ListItems](https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.webcontrols.listitem?view=netframework-4.8) for use with dropdown lists (in both Windows or Web apps.)
@@ -173,8 +174,6 @@ The `LoadList` method takes four arguments:
 2. File name (`states`)
 3. Text to display field name (`state`)
 4. Value field name (`abbrev`)
-
-
 
 ### Look ma, a custom event
 
@@ -215,6 +214,7 @@ The `AfterRowReadArg` presents data back to the event hander with information ab
 
 `DGFileReader` must be declared in a class with `WithEvents(*Yes)`. This is very important. Without it, the `AfterRowRead` event wouldn't be raised.
 
+```
     DclDB DGDB DBName('*Public/Cypress5166')  
     DclFld dgh Type(DGFileReader) WithEvents(*Yes) 
     
@@ -250,6 +250,20 @@ The `AfterRowReadArg` presents data back to the event hander with information ab
 
     EndSr
 EndClass
+```
+
+### BeforeFirstRead event 
+
+There is also a BeforeFirstRead event where you might want to do something just before record reading starts. 
+
+``` 
+BegSr OnBeforeFirstRead Event(dgfr.BeforeFirstRead) 
+    DclSrParm Sender Type(*Object) 
+    DclSrParm e Type(EventArgs) 
+
+    Console.WriteLine('Occurs before first read.' )
+EndSr
+```
 
 ### Accumulating the rows in a DataTable
 
@@ -263,11 +277,7 @@ However, there might be times, for files of rational size, where you want `ReadE
         DclSrParm sender *Object
         DclSrParm e System.EventArgs
 
-        // Don't auto generate DataGridView columns--use only those defined at design-time.
-        datagridviewCustomers.AutoGenerateColumns = *False
-
         // Do accumulate rows in a DataSet.
-        // BTW, why, oh why, isn't this property surfaced in the DataGridView's 
         // design-time properties! 
         dgfr.AccumulateRows = *True 
 
@@ -432,17 +442,11 @@ The field types reported are .NET types. For example, `string`, `decimal`, `date
 
 ##### Row counter values
 
-The `e.CurrentRowCounter` provides the one-based current row number and the `e.TotalRowsCounter` provides the number of rows in the table. Interrogating `e.CurrentCounter` provides a good way to perform first-time initialization in the AfterRowRead event handler. 
+The `e.CurrentRowCounter` provides the one-based current row number and the `e.TotalRowsCounter` provides the number of rows in the table. It's a silly example, but if you wanted to stop reading records after the fourth record read, do this
 
-    If e.CurrentRowCounter = 1 
-        // Do some initalization work.
+    If e.CurrentRowCounter = 4 
+        e.CancelRead = *True
     EndIf 
-
-    ForEach FieldName Type(*String) Collection(e.FieldNames)
-        Console.WriteLine("Field {0} has a value of {1}", +
-                                    FieldName, +
-                                    e.DataRow[FieldName].ToString())
-    EndFor 
 
 #### Record blocking 
 
@@ -450,13 +454,13 @@ The `e.CurrentRowCounter` provides the one-based current row number and the `e.T
 
 In the constructor examples below, `nnn` is the value to use for record blocking. Setting this to a value of up to 1000 _may_ help performance. A values higher than 1000 will likely impede performance. 
 
-> Setting the record blocking argument too high will almost certainly impede performance. You can use the `ReadMillisconds` property (explained below) to monitor the impact of changing the record blocking factor.
+> Setting the record blocking argument too high will almost certainly impede performance. Use the `ReadMillisconds` property (explained below) to monitor the impact of changing the record blocking factor.
 
 With C#
 
         this.dgfr = new ASNA.DataGateHelper.DGFileReader(apiDGDB, nnn);
 
-With AVRL
+With AVR
 
         *This.dgfr = *New DGFileReader(DGDB, nnn)
 
