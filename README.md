@@ -1,68 +1,208 @@
 ## ANSA.DataGateHelper namespace
 
-### Classes 
 
-#### DGFileReader 
+## The DGFileReader and ListItemHelper classes
 
-This class uses the DataGate API to read any DataGate file. 
-
-[See this repo for a simple ASNA Visual RPG (AVR) example that uses `DGFileReader`.](https://github.com/ASNA/avr-DGReadFile-example)
-
-[See this repo for an a more complex AVR example that uses the `DGFileReader` to export a DG file to CSV.](https://github.com/ASNA/avr-version-of-export-dg-to-csv)
-
-[See this repo for an a more a C# version of the second AVR example mentioned above CSV.](https://github.com/ASNA/cs-version-of-export-dg-to-csv)
-
-This project provides a class named `DGFileReader` that lets you read any DataGate physical or logical file dynamically at runtime. This is a more flexible version [of the project provided here.](https://github.com/ASNA/generic-file-reader-simple). This project uses a custom event to provide flexible processing for each row read. 
+The `DGFileReader` class uses the DataGate API to read any DataGate file from beginning to end. The primary use case of `DGFileReader` is to be able to open and read a file on demand in your AVR code without needing a compile-time `DclDiskFile.`
 
 You can use this class with either ASNA Visual RPG or with C#. For C# use, you'll need to manually add the ASNA.DataGate.Client and ASNA.VisualRPG.Runtime assemblies. In either case, you'll also need a DataGate client license to use this class. 
 
-### The use case
+In the following examples, `Tester` is a file two fields:
 
-The primary use case of `DGFileReader` is to be able to open and read a file that is unknown at compile-time. For AVR, files are usually known at compile-time and references are backed into your AVR program with `DclDiskFile` objects for each file needed. 
+```
+CMCustno Type(*Packed) Len(,0)
+CMName   Type(*Char) Le(40)
+```
 
-Consider the need to do a complex query on the IBM i and get that data back into AVR, perhaps to export that data to Excel or populate a grid or a list. 
-Lately, I've been using AVR to call RPG programs with AVR that do interesting things with SQL and write the results to QTEMP. This output file and its structure are not known (and in fact probably don't even exist) to AVR at compile-time; you can't define them with a `DclDiskFile` at compile-time. 
+The `DGFileReader` has only one public method, `ReadEntireFile`. This method opens a file for read-only access, reads it to its end, and then closes it. For each record read the `OnAfterRow` even is raised. The contents of the row just read are available as a [DataRow object](https://docs.microsoft.com/en-us/dotnet/api/system.data.datarow?view=net-6.0). Field values are available in the DataRow, but must be cast or converted to their appropriate type for most uses. 
 
-It's amazing how quickly AVR can call an RPG program to use SQL to write results to a work file -- and then open that work file. The process sounds a little convoluted, but AVR can make an RPG program call in a matter of milliseconds and this process is very effective.
+For example, consider the need to read each record of a file and and do something with the record read. 
 
-At first, I resisted writing the SQL results to a temporary file, for two reasons:
+```
+DclDB DGDB DBName('*Public/Leyland')  
 
-1. I thought it would impede program performance to call the RPG program to create a temporary work file and then immediately open and read that file with AVR. I was wrong about this. 
-2. It was cumbersome to create a copy of the work file to have it available at AVR compile-time. Every time I changed the SQL statement, I had to recreate a static copy of the file. 
+DclFld dgfr Type(DGFileReader) WithEvents(*Yes)
 
-My early passes used a data structure array in the RPG program's parameter list to get SQL-fetched data back to the AVR program. That worked well, but imposed imposed lots of coding ceremony and friction in the both the calling AVR program and the ILE RPG called program. I needed something simpler. 
+BegSr Run Access(*Public)  
+    Connect DGDB 
 
-Because the "program call/write a work file/read the work file" workflow doesn't impede performance and the `DGFileReader` class makes it easy to open and process dynamically, together they provided the simpler something I needed.
+    dgfr = *New DGFileReader(DGDB)
+    dgfr.ReadEntireFile('rp_data', 'tester') 
 
-Beyond working with files unknown at compile-time, `DGFileReader` may also be of value to files that you do know about at compile-time. For example, let's say you have a small file of order types and you need to put fields from that file into a drop-down box. `DGFileReader` is great for little things like that. 
+    Disconnect DGDB 
+EndSr 
 
-Anytime you need to read a file quickly, of known structure or not (but especially of unknown structure), consider using `DGFileReader.`
+BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
+    DclSrParm Sender Type(*Object)
+    DclSrParm e Type(AfterRowReadArgs) 
+
+    DclFld CustomerName Type(*String)
+    DclFld CustomerNumber Type(*Integer4)
+
+    CustomerNumber = Convert.ToInt32(e.DataRow['cmcustno'])  
+    CustomerName = e.DataRow['cmname'].ToString() 
+
+    // Do something here with the record just read. 
+EndSr    
+```
+
+The file used is opened dynamically and there is no need for `DclDiskFile`. The entire file is read, beginning to end (although it wouldn't too hard to add read-by-range capabilities if you were so motivated). The `DGFileReader` was written originally to be a part of a facility to export DG files to CSV format, but has since worked well in a couple of other use cases. 
+
+
+### Populating a strongly-typed collection
+
+In the following examples, `CMastNewL2` is a file with several files, but the two we care about for this example are:
+
+```
+CMCustno Type(*Packed) Len(,0)
+CMName   Type(*Char) Le(40)
+```
+
+First, you need to create a class for which you want to create a strongly-typed collection. We'll use this simple two-field class, but the class could have many fields in it. Be sure to declare them as public properties so the class works with .NET's data binding (public fields don't data data bind). 
+
+```
+BegClass Customer Access(*Public)
+    DclProp CMCustNo Type(*Packed) Len(9,0) Access(*Public)
+    DclProp CMName Type(*String) Access(*Public)
+EndClass
+```
+
+Next, create a class as shown below. It declares the `DGFileReader` class instance and the `Customers` list global to the class. 
+
+```
+BegClass CustomerList Access(*Public) 
+    DclDB DGDB DBName('*Public/Leyland')  
+    
+    DclFld dgfr Type(DGFileReader) WithEvents(*Yes)
+    DclFld Customers Type(List(*Of Customer)) New() 
+
+    BegSr Run Access(*Public) 
+        DclFld RecordCount Type(*Integer4) 
+
+        RecordCount = GetCustomersList() 
+        Console.WriteLine("Record count: {0:#,##0}", RecordCount)
+
+        // Show values collected. Typically at this point you'd
+        // bind the Customers collection as a data source to a control.  
+
+        ForEach c Type(Customer) Collection(Customers)
+            Console.WriteLine("{0:00000} {1}", c.CMCustNo, c.CMName)
+        EndFor 
+    EndSr
+
+    BegFunc GetCustomersList Type(*Integer4) 
+        Connect DGDB 
+        
+        // Instance the reader.
+        dgfr = *New DGFileReader(DGDB)    
+        
+        // Tell the reader the type of the class you are collecting
+        // A class instance is not created if you don't provide this property.
+        *This.dgfr.CustomClassType = *TypeOf(Customer)
+        
+        // Read the `CMastNewL2` in the `rp_data` library.
+        dgfr.ReadEntireFile('rp_data', 'CMastNewL2') 
+
+        Disconnect DGDB 
+        // Leave with the number of records read. 
+        LeaveSr dgfr.RecordCount
+    EndFunc 
+    
+    BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
+        DclSrParm Sender Type(*Object)
+        DclSrParm e Type(AfterRowReadArgs) 
+
+        // For each row read, add the class that the `DGFileReader` creates
+        // in its `CustomClassInstance` to the `Customers` collection. 
+
+        Customers.Add(*This.dgfr.CustomClassInstance *As Customer)
+    EndSr
+EndClass
+```
+
+Using the `DGFileReader` makes populating a list vastly more declarative and simple. Beware, it can get you in trouble because it does read the _entire file_ and that may try to put a million customers in the `Customers` list. 
+
+What could the use case be for reading an entire file and putting each row in a strongly typed collection? Consider wanting to use SQL on the IBM i to populate a grid in a Web app. IBM i SQL has a great limit/offset feature that makes paging through data very simple (where `limit` is essentially the page size and `offset` is essentially the page number). An AVR program calls an ILE program and executes the following SQL (where :limit and :offset variables that AVR tracks):
+
+```
+CREATE TABLE qtemp/hdu243qwe2 AS 
+(
+    WITH result AS     
+    (
+        SELECT cmcustno, cname
+        FROM exmaples/cmastnewL2
+        ORDER BY cname, cmcustno
+        LIMIT :limit
+        OFFSET :offset
+    )
+SELECT * FROM result
+) WITH DATA     
+```
+
+The result is a uniquely-named table created in QTEMP with a page of full of data in it, in the correct sorting sequence. Varying the `SELECT` clause can vary the columns made available. Joins and other SQL magic are also easily avaiable.
+
+Immediately after the program call AVR uses the `DGFileReader` class to populate a strongly-typed list which is then displayed on a Web page--all in about 500 milliseconds. The technique can also use SQL LIKE clause to fine-tune row selection. 
+
+
+### Populating a ListItemCollection 
+
+Along with the `DGFileReader` is a `ListItemHelper` class. This class provides a `LoadList` method that very quickly populates a [ListItemCollection](https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.webcontrols.listitemcollection?view=netframework-4.8) with [ListItems](https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.webcontrols.listitem?view=netframework-4.8) for use with dropdown lists (in both Windows or Web apps.)
+
+In this example, the `states` file has two fields:
+
+```
+State Type(*Char) Len(48)  (A state name)
+Abbrev Type(*Char) Len(2) (A two-character state abbreviation)
+```
+
+THe following code is all it takes to populate a dropdown list with help from the `ListemItemHelper`:
+
+```
+DclDB DGDB DBName('*Public/Leyland')  
+
+DclFld lih Type(ListItemHelper) New(*This.DGDB) 
+DclFld RecordsRead Type(*Integer4) 
+
+RecordsRead = lih.LoadList('examples', 'states', 'state', 'abbrev') 
+dropdownlistStates.DataSource = lih.ListItems
+```
+
+The `LoadList` method takes four arguments:
+
+1. Library name (`exmaples`)
+2. File name (`states`)
+3. Text to display field name (`state`)
+4. Value field name (`abbrev`)
+
+
 
 ### Look ma, a custom event
 
-Most of this project's logic is pulled directly [from this project](https://github.com/ASNA/generic-file-reader-simple). This logic lets you dynamically open and read an entire file (without a DclDiskFile). The difference here is that this project raises an `AfterRowRead` event after each row is read. 
+`DGFileReader` uses raises an `AfterRowRead` event after each row is read. This event handler is where you put your code for what you want to do with each row read. This event and its implementation are declared in the `DGFileReader` class.
 
-#### Declare an event
+##### The event declaration
 
     // Declare `AfterRowRead` event.
     DclEvent AfterRowRead
       DclSrParm Sender Type(*Object) 
       DclSrParm e Type(AfterRowReadArgs) 
 
-#### Declare a custom event argument class
+##### The event's implementation
+
+The `AfterRowReadArg` presents data back to the event hander with information about the row just read.
 
     // Provides the `e` argument for the AfterRowRead event.
     BegClass AfterRowReadArgs Extends(System.EventArgs) Access(*Public)
-        DclFld DataRow Type(System.Data.DataRow) Access(*Public)  
-        DclArray FieldNames Type(*String) Rank(1) Access(*Public)
+        DclFld DataRow           Type(System.Data.DataRow) Access(*Public)  
+        DclArray FieldNames      Type(*String) Rank(1) Access(*Public)
         DclFld CurrentRowCounter Type(*Integer4) Access(*Public)
-        DclFld TotalRowsCounter Type(*Integer8) Access(*Public)
+        DclFld TotalRowsCounter  Type(*Integer8) Access(*Public)
 
         BegConstructor Access(*Public) 
-            DclSrParm DataRow  Type(System.Data.DataRow) 
-            DclSrParm FieldNames Type(*String) Rank(1)
+            DclSrParm DataRow           Type(System.Data.DataRow) 
+            DclSrParm FieldNames        Type(*String) Rank(1)
             DclSrParm CurrentRowCounter Type(*Integer4) 
-            DclSrParm TotalRowsCounter Type(*Integer8) 
+            DclSrParm TotalRowsCounter  Type(*Integer8) 
             
             *This.DataRow = DataRow
             *This.FieldNames = FieldNames
@@ -71,22 +211,9 @@ Most of this project's logic is pulled directly [from this project](https://gith
         EndConstructor
     EndClass
 
-#### Raise the event after each read
-
-Notice here the `AfterRowRead` event is raised, passing it the current `*This` instance as the `Sender` argument and an instance of `AfterRowReadArgs` as the `e` argument.
-
-    // Read a record.
-    DGFile.ReadSequential(DGDS, ReadSequentialMode.Next, LockRequest.Read)
-    RowCounter += 1
-    // Raise AfterRowRead event.
-    AfterRowRead(*This, *New AfterRowReadArgs(DGDS.ActiveRow, + 
-                                                *This.FieldNames, +
-                                                RowCounter, +
-                                                DGFile.RecordCount))
-
 #### In the consuming code
 
-Note that `DGFileReader` is declared with `WithEvents(*Yes)`. This is very important. Without it, the event wouldn't be raised.
+`DGFileReader` must be declared in a class with `WithEvents(*Yes)`. This is very important. Without it, the `AfterRowRead` event wouldn't be raised.
 
     DclDB DGDB DBName('*Public/Cypress5166')  
     DclFld dgh Type(DGFileReader) WithEvents(*Yes) 
@@ -164,7 +291,7 @@ Using the fluent syntax, you could do this (the line continuation is for publish
     datagridviewCustomers.DataSource = + 
         dgfr.ReadEntireFile('*Public/DG Net Local', 'Examples', 'CMastNewL2').DataTable 
 
-#### Instancing `DFFileReader`
+#### Instancing `DGFileReader`
 
 The `DGFileReader` does not establish it's own DataGate server connection. Rather, it expects a DataGate server connection be through its constructor. This pattern of passing a DataGate connection to child class is called the [Singleton DB pattern.](https://asna.com/us/tech/kb/doc/singleton-db-pattern)
 
@@ -174,8 +301,6 @@ In the DataGate realm, there are two distinct database connections:
 * If you are using C# with the DataGate API, the API establishes connections through the `ASNA.DataGate.Client.AdgConnection` object. 
 
 `DGFileReader` has overloads to accept either connection type (so that it can easily be used with either AVR or C#)
-
-> Note 
 
 To instance the `DGFileReader` with C#:
 
@@ -345,111 +470,6 @@ The section, "Accumulating the rows in a DataTable" from above explains the `DGF
 
 * `ReadMilliseconds` - an integer presents the time taken, in milliseconds, to read the entire file (essentially timing how long the `ReadEntireFile` method took).
 * `TotalRowsCounter` - this is the same integer value as is available in the `AfterRowRead` event handler. 
-
-
-#### Experimental feature: Populate a custom class
-
-`DGFileReader` has an experimental feature that populates a custom class each time a record is read. This lets you accumulate a strongly-typed collection of custom classes. This experimental feature is an alternative to using `DGFileReader's` `AccumulateRows` and `DataTable` properties. 
-
-Three properties enable this feature: 
-
-* `CustomClassAssembly` - A set-only value that is the assembly that owns the custom class to populate. 
-* `CustomClassName` - A set-only string value that is the fully qualified name of the custom class to populate. 
-* `CustomClassInstance` - A read-only instance of the custom class with its properties populated by `DGFileReader` after each row is read. 
-
-> Why is this experimental? I am pretty sure that it works but it hasn't been tested as thoroughly as the other features in `DGFileReader`. In fact, it was a 30 minute after-thought while writing these docs! Let me know if it works for you. So far, it is working for me. 
-
-The intent with this example's use case is to quickly create a data source for 
-a dropdown list in ASP.NET. 
-
-Consider a `Customer` class that defines a subset of a customer file like this: 
-
-    BegClass Customer Access(*Public)
-        DclProp cmcustno    Type( *Packed ) Len( 9,0 )   Access(*Public)
-        DclProp cmname      Type( *Char ) Len( 40 )      Access(*Public)
-    EndClass
-
-There are many more fields in the customer file record, but this example only needs the `cmcustno` and `cmname` values. The `Customer` class is shown below. Note that all properties are lower-case. This is important. `DGReadFile` will look up each field from a record read and assign a value to matching properties in the custom class. Its field look up is case-sensitive and assumes property names are lower case. (Technically, what is case-sensitive is the .NET reflection that dynamically assigns a value to a class property.)
-
-> Be sure to use `DclProp` to define the class's properties. .NET reflection cannot populate fields, only properties. 
-
-Before calling `DGFileReader's` `ReadEntireFile` method, its `Assembly` property is set to the currently executing assembly (which is the assembly that owns the custom class) and its `CustomClassName` property is set to the fully-qualified name of the custom class. 
-
-A global collection of `Customer` is declared in the `Customers` field. After each row is read, this line in the `AfterRowRead` event handler:
-
-    Customers.Add(*This.dgfr.CustomClassInstance *As Customer) 
-
-adds the implicitly-created instance of `Customer` to the `Customers` collection.
-
-After `DGFileReader's` `ReadEntireFile` method runs, these four lines of code 
-
-    dropdownlistCustomers.DataTextField = "cmname"
-    dropdownlistCustomers.DataValueField = "cmcustno"
-    dropdownlistCustomers.DataSource = Customers
-    dropdownlistCustomers.DataBind()
-
-populate the ASP.NET DropdownList control.
-
-The full code is shown below: 
-
-    Using System.Collections.Generic 
-    Using System.Reflection 
-    Using ASNA.DataGateHelper
-
-    DclNameSpace MyApp 
-        
-    BegClass Index Partial(*Yes) Access(*Public) Extends(System.Web.UI.Page)
-
-        DclDB DGDB DBName("*Public/DG NET Local")
-
-        DclFld dgfr Type(DGFileReader) WithEvents(*Yes) 
-        DclFld Customers Type(List (*of Customer)) New()
-
-        BegSr Page_Load Access(*Private) Event(*This.Load)
-            DclSrParm sender Type(*Object)
-            DclSrParm e Type(System.EventArgs)
-
-            Connect DGDB 
-
-            If (NOT Page.IsPostBack)
-                PopulateCustomerInstance()
-            EndIf
-        EndSr
-
-        BegSr Page_Unload Access(*Private) Event(*This.Unload)
-            DclSrParm sender Type(*Object)
-            DclSrParm e Type(System.EventArgs)
-
-            Disconnect DGDB 
-        EndSr
-
-        BegSr PopulateCustomerInstance
-            *This.dgfr = *New DGFileReader(DGDB, 500)
-
-            *This.dgfr.Assembly = Assembly.GetExecutingAssembly()
-            *This.dgfr.CustomClassName = "MyApp.Customer"
-
-            *This.dgfr.ReadEntireFile("examples", "cmastnewL2")
-
-            dropdownlistCustomers.DataTextField = "cmname"
-            dropdownlistCustomers.DataValueField = "cmcustno"
-            dropdownlistCustomers.DataSource = Customers
-            dropdownlistCustomers.DataBind()
-        EndSR 
-
-        BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
-            DclSrParm Sender Type(*Object)
-            DclSrParm e Type(AfterRowReadArgs) 
-
-            Customers.Add(*This.dgfr.CustomClassInstance *As Customer) 
-        EndSr 
-
-    EndClass
-
-    BegClass Customer Access(*Public)
-        DclProp cmcustno    Type( *Packed ) Len( 9,0 )   Access(*Public)
-        DclProp cmname      Type( *Char ) Len( 40 )      Access(*Public)
-    EndClass 
 
 Like `DGFileReader's` ability to accumulate a file in a `DataTable`, use this feature carefully. A file with a million rows would suck the keys off of your keyboard as .NET tries to build a million row custom collection. 
 

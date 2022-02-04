@@ -1,0 +1,49 @@
+﻿Using System
+Using System.Text
+Using System.Web.UI.WebControls
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass ListItemHelper Access(*Public) 
+    DclDB DGDB
+    
+    DclConst BLOCKING_FACTOR 500 Access(*Public) 
+    
+    DclProp ListItems Type(ListItemCollection) Access(*Public) SetAccess(*Private) 
+    
+    DclFld dgfr Type(DGFileReader) WithEvents(*Yes)    
+    DclFld TextFieldName Type(*String) 
+    DclFLd ValueFieldName Type(*String) 
+
+    BegConstructor Access(*Public) 
+        DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.Database) 
+
+        *This.DGDB = DGDB
+    EndConstructor 
+    
+    BegFunc LoadList Access(*Public) Type(*Integer4)
+        DclSrParm LibraryName Type(*String) 
+        DclSrParm FileName Type(*String) 
+        DclSrParm TextFieldName Type(*String) 
+        DclSrParm ValueFieldName Type(*String) 
+
+        Connect DGDB 
+
+        *This.ListItems = *New ListItemCollection()
+
+        *This.TextFieldName = TextFieldName 
+        *This.ValueFieldName = ValueFieldName
+
+        dgfr = *New DGFileReader(DGDB, BLOCKING_FACTOR)
+        dgfr.ReadEntireFile(LibraryName, FileName) 
+
+        LeaveSr dgfr.RecordCount
+    EndFunc 
+    
+    BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
+        DclSrParm Sender Type(*Object)
+        DclSrParm e Type(AfterRowReadArgs) 
+
+        ListItems.Add(*New ListItem(e.DataRow[*This.TextFieldName].ToString(), e.DataRow[*This.ValueFieldName].ToString()))
+    EndSr
+EndClass

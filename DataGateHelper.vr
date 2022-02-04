@@ -3,7 +3,9 @@ Using System.Diagnostics
 Using ASNA.DataGate.Client
 Using ASNA.DataGate.Common
 Using ASNA.DataGate.Providers
+Using System.Data 
 Using System.Reflection 
+Using System.Collections.Generic
 
 DclNamespace ASNA.DataGateHelper
 
@@ -14,30 +16,40 @@ BegClass DGFileReader Access(*Public)
 
     // If *False, the DataSet property contains only the current row.
     // If *True, the DataSet property is populated with all rows read.
-    DclProp AccumulateRows Type(*Boolean) Access(*Public)  
-    BegProp DataTable Type(System.Data.DataTable) Access(*Public) SetAccess(*Private) 
-        BegGet
-            LeaveSr (DGDS *As System.Data.DataSet).Tables[0]
-        EndGet
-    EndProp 
+    DclFld AccumulateRows Type(*Boolean) Access(*Public)  
 
-    DclProp CustomClassAssembly  Type(Assembly) Access(*Public) GetAccess(*Private) 
-    DclProp CustomClassName Type(*String) Access(*Public) GetAccess(*Private)
-    DclProp CustomClassInstance Type(*Object) Access(*Public) SetAccess(*Private)
+    DclFld CustomClassAssembly  Type(Assembly) 
+    DclFld CustomClassType Type(Type) Access(*Public) Inz(*Nothing)    
+    DclFld CustomClassInstance Type(*Object) Access(*Public) 
 
-    DclProp ReadMilliseconds Type(*Integer4) Access(*Public) SetAccess(*Private) 
-    DclProp TotalRowsCounter Type(*Integer4) Access(*Public) SetAccess(*Private) 
+    DclFld ReadMilliseconds Type(*Integer4) Access(*Public)
+    DclFld TotalRowsCounter Type(*Integer4) Access(*Public)
+    DclFld RowErrorCounter  Type(*Integer4) Access(*Public)
+    DclFld BeginningRecordCount Type(*Integer4) Access(*Public) 
 
     DclArray FieldNames Type(*String) Rank(1)
     DclArray FieldTypes Type(*String) Rank(1) 
 
     DclFld BlockingFactor Type(*Integer4) 
+    DclFld RecordCount Type(*Integer8) Access(*Public)
+
+    DclFld LibraryName Type(*String)
+    DclFld FileName Type(*String) 
 
     // Declare `AfterRowRead` event.
     DclEvent AfterRowRead
-      DclSrParm Sender Type(*Object) 
-      DclSrParm e Type(AfterRowReadArgs) 
-      
+        DclSrParm Sender Type(*Object) 
+        DclSrParm e Type(AfterRowReadArgs) 
+
+    DclEvent RowReadError
+        DclSrParm Sender Type(*Object) 
+        DclSrParm e Type(RowReadErrorArgs) 
+
+    DclEvent BeforeFirstRead
+        DclSrParm Sender Type(*Object) 
+        DclSrParm e Type(EventArgs) 
+
+
     // Constructor with API DB connection only.
     BegConstructor Access(*Public) This(DBConnection, FileOpenAttr.OptimalBlockingFactor)
         DclSrParm DBConnection Type(AdgConnection)
@@ -79,7 +91,7 @@ BegClass DGFileReader Access(*Public)
     EndSr 
   
     // Open file for read-only use.        
-    BegSr OpenForRead Access(*Public) 
+    BegSr OpenForRead 
         //DclSrParm DBName Type(*String) 
         DclSrParm Library Type(*String) 
         DclSrParm File Type(*String)
@@ -87,8 +99,15 @@ BegClass DGFileReader Access(*Public)
         DclFld Index Type(*Integer4) 
         DclFld FieldType Type(*String) 
 
+        *This.LibraryName = Library
+        *THis.FileName = File 
+
         // Instance file object.
-        DGFile = *New FileAdapter(DGDB, String.Format('{0}/{1}', Library, File))
+        If Library = "/"
+            DGFile = *New FileAdapter(DGDB, File)
+        Else
+            DGFile = *New FileAdapter(DGDB, String.Format('{0}/{1}', Library, File))
+        EndIf 
 
         // Set read-only with optimal record blocking.
         DGFile.AccessMode = AccessMode.Read
@@ -97,8 +116,10 @@ BegClass DGFileReader Access(*Public)
         Try 
             DGFile.OpenNewAdgDataSet(*ByRef DGDS)
         Catch ex Type(Exception)
-            Throw *New System.ArgumentException(String.Format('An error occurred trying to open {0}/{1}.', Library, File))
+            Throw *New System.ArgumentException(String.Format('An error occurred trying to open {0}/{1}. Additional info: {2}.', Library, File, ex.Message))
         EndTry 
+
+        *This.RecordCount = DGFile.RecordCount
 
         // Populate FieldNames array.
         *This.FieldNames = *New *String[DGDS.Tables[0].Columns.Count]
@@ -115,21 +136,29 @@ BegClass DGFileReader Access(*Public)
         EndFor
     EndSr
 
+    BegSr CloseReader Access(*Public) 
+        *This.DGFile.Close()
+    EndSr
+
     // Read entire file.
     BegFunc ReadEntireFile Access(*Public) Type(DGFileReader) 
         //DclSrParm DBName Type(*String) 
         DclSrParm Library Type(*String) 
         DclSrParm File Type(*String)
 
-        DclFld EventArgs Type(AfterRowReadArgs) 
+        DclFld AfterReadArgs Type(AfterRowReadArgs) 
         DclFld sw Type(StopWatch) New()
+
+        *This.CustomClassAssembly = System.Reflection.Assembly.GetExecutingAssembly()
 
         sw.Start()
           
         // Open the DataGate file.
         OpenForRead(Library, File) 
         
-        EventArgs = *New AfterRowReadArgs(*Nothing, + 
+		*This.BeginningRecordCount = DGFile.RecordCount        
+        
+        AfterReadArgs = *New AfterRowReadArgs(*Nothing, + 
                                          *This.FieldNames, +
                                          *This.FieldTypes, + 
                                           0, +
@@ -137,13 +166,15 @@ BegClass DGFileReader Access(*Public)
 
         *This.TotalRowsCounter = DGFile.RecordCount 
 
+        BeforeFirstRead(*This, *New System.EventArgs()) 
+
         // Read all records. 
-        DoWhile ReadNextRecord(EventArgs)
+        DoWhile ReadNextRecord(AfterReadArgs)
             // The AfterRowRead event is raised for each row read.
         EndDo 
 
         // Close file.
-        DGFile.Close() 
+        CloseReader()
 
         sw.Stop()
 
@@ -159,14 +190,24 @@ BegClass DGFileReader Access(*Public)
         DclFld type Type(Type) 
         DclFld prop Type(PropertyInfo) 
 
+        DclArray Props Type(PropertyInfo) Rank(1)
+
+        type = *This.CustomClassInstance.GetType()
+        Props = type.GetProperties()
+
         ForEach FieldName Type(*String) Collection(*This.FieldNames)
             FieldValue = DataRow[FieldName] 
             type = *This.CustomClassInstance.GetType()
-            prop = type.GetProperty(FieldName.ToLower()) 
-            If prop <> *Nothing
-                prop.SetValue(*This.CustomClassInstance, FieldValue, *Nothing) 
-            EndIf 
-        EndFor 
+
+            // Gotta iterate properties because GetProperty method 
+            // is case sensitive.
+            ForEach prop Collection(type.GetProperties())
+                If prop.Name.ToLower() = FieldName.ToLower()
+                    prop.SetValue(*This.CustomClassInstance, FieldValue, *Nothing)
+                    Leave 
+                EndIf 
+            EndFor 
+         EndFor 
     EndSr 
 
     // Read next available record. 
@@ -174,7 +215,11 @@ BegClass DGFileReader Access(*Public)
     BegFunc ReadNextRecord Type(*Boolean)       
         DclSrParm EventArgs Type(AfterRowReadArgs) 
 
-        DclFld type Type(Type) 
+        DclFld RowErrorArgs Type(RowReadErrorArgs)
+
+        If EventArgs.CancelRead
+            LeaveSr *False 
+        EndIf 
 
         // ReadSequential doesn't know about EOF--it throws a DataGate
         // exception when there are no more records to read. 
@@ -187,13 +232,12 @@ BegClass DGFileReader Access(*Public)
             
         Try
             // Read a record.
-            DGFile.ReadSequential(DGDS, ReadSequentialMode.Next, LockRequest.Read)
+            DGFile.ReadSequential(DGDS, ReadSequentialMode.Next, LockRequest.NoLock)
+            EventArgs.CurrentRowCounter = EventArgs.CurrentRowCounter + 1
             EventArgs.DataRow = DGDS.ActiveRow
-            EventArgs.CurrentRowCounter += 1
 
-            If *This.CustomClassName <> *Nothing AND *This.CustomClassAssembly <> *Nothing 
-                type = *This.CustomClassAssembly.GetType(*This.CustomClassName, *True) 
-                *This.CustomClassInstance = Activator.CreateInstance(type) 
+            If *This.CustomClassType <> *Nothing
+                *This.CustomClassInstance = Activator.CreateInstance(*This.CustomClassType) 
                 *This.PopulateClassInstance(DGDS.ActiveRow)
             EndIf 
 
@@ -213,8 +257,66 @@ BegClass DGFileReader Access(*Public)
                 // Otherwise rethrow error exception. 
                 Throw DgEx           
             EndIf
-        EndTry    
+
+        Catch Ex Type(Exception)
+            If ex.Message.StartsWith("Invalid data was encountered")
+                EventArgs.CurrentRowCounter = EventArgs.CurrentRowCounter + 1
+                *This.RowErrorCounter = *This.RowErrorCounter + 1
+                RowErrorArgs = *New RowReadErrorArgs(*This.FileName, EventArgs.CurrentRowCounter, ex.Message)
+                RowReadError(*This, RowErrorArgs)
+                LeaveSr *True
+            Else
+                Throw Ex           
+            EndIf 
+        EndTry   
     EndFunc
+
+    // This routine might come in handy if you want to use a database name
+    // in a Windows file name.
+    BegFunc NormalizeDatabaseName Type(*String) Shared(*Yes) Access(*Public) 
+        DclSrParm DatabaseName Type(*String)
+
+        DatabaseName = DatabaseName.Replace('/', '_').ToLower()
+        DatabaseName = DatabaseName.Replace(' ', '_').ToLower()
+        DatabaseName = DatabaseName.Replace('*public', 'public')
+
+        LeaveSr DatabaseName
+    EndFunc 
+
+    BegFunc Mod Type(*Boolean) Shared(*Yes) Access(*Public) 
+        // Return the remainder of division.
+        DclSrParm Dividend *Integer4 
+        DclSrParm Divisor  *Integer4 
+
+        DclFld Remainder *Integer4 
+
+        System.Math.DivRem(Dividend, Divisor, *ByRef Remainder) 
+
+        Leavesr Remainder = 0 
+    EndFunc
+
+    BegFunc RemoveLastCharacter Type(*String) Shared(*Yes) Access(*Public) 
+        DclSrParm InputString Type(*String) 
+
+        LeaveSr InputString.Remove(InputString.Length - 1, 1)
+    EndFunc 
+
+EndClass
+
+BegClass RowReadErrorArgs Extends(System.EventArgs) Access(*Public) 
+    DclFld FileName Type(*String) Access(*Public) 
+    DclFld RowNumber Type(*Integer4) Access(*Public) 
+    DclFld ErrorMessage Type(*String) Access(*Public)
+
+    BegConstructor Access(*Public)
+        DclSrParm FileName TYpe(*String) 
+        DclSrParm RowNumber Type(*Integer4)
+        DclSrParm ErrorMessage Type(*String) 
+
+        *THis.FileName = FileName 
+        *This.RowNumber = RowNumber
+        *This.ErrorMessage = ErrorMessage
+    EndConstructor 
 EndClass
 
 // Provides the `e` argument for the AfterRowRead event.
@@ -224,6 +326,7 @@ BegClass AfterRowReadArgs Extends(System.EventArgs) Access(*Public)
     DclArray FieldTypes Type(*String) Rank(1) Access(*Public)
     DclFld CurrentRowCounter Type(*Integer4) Access(*Public)
     DclFld TotalRowsCounter Type(*Integer8) Access(*Public)
+    DclFld CancelRead Type(*Boolean) Access(*Public) 
 
     BegConstructor Access(*Public) 
         DclSrParm DataRow  Type(System.Data.DataRow) 
@@ -237,5 +340,6 @@ BegClass AfterRowReadArgs Extends(System.EventArgs) Access(*Public)
         *This.FieldTypes = FieldTypes
         *This.CurrentRowCounter = CurrentRowCounter
         *This.TotalRowsCounter = TotalRowsCounter  
+        *This.CancelRead = *False 
     EndConstructor
 EndClass

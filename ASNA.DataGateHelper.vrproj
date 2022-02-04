@@ -10,8 +10,9 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>ASNA.DataGateHelper</RootNamespace>
     <AssemblyName>ASNA.DataGateHelper</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <Name>ASNA.DataGateHelper</Name>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -30,9 +31,15 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="ASNA.DataGate.Client" />
-    <Reference Include="ASNA.VisualRPG.Runtime" />
+    <Reference Include="ASNA.Runtime, Version=15.0.47.0, Culture=neutral, PublicKeyToken=d7106be54d30c861">
+      <RequiredTargetFramework>4.0</RequiredTargetFramework>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
+    <Reference Include="System.Web">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5.2\System.Web.dll</HintPath>
+      <RequiredTargetFramework>4.0</RequiredTargetFramework>
+    </Reference>
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
@@ -40,11 +47,11 @@
       <SubType>
       </SubType>
     </Compile>
-    <Compile Include="Properties\AssemblyInfo.vr" />
-    <Compile Include="Utils.vr">
+    <Compile Include="ListItemHelper.vr">
       <SubType>
       </SubType>
     </Compile>
+    <Compile Include="Properties\AssemblyInfo.vr" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />
