@@ -1,0 +1,69 @@
+﻿Using System
+Using System.Text
+Using System.Collections.Generic
+Using System.Text.RegularExpressions
+Using ShortId 
+Using ShortId.Configuration 
+
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass Utility Access(*Public)
+
+    BegFunc CreateSQL Type(*String) Access(*Public) Shared(*Yes)         
+        DclSrParm QueryArgs Type(Dictionary (*Of *String, *String)) 
+
+        DclFld sb Type(StringBuilder) New()
+                                                 
+        sb.AppendLine('CREATE TABLE {libraryName}/{uniqueObjectId} as (' ) 
+        sb.AppendLine('WITH result AS ( ')
+
+        If QueryArgs.ContainsKey('select') 
+            sb.AppendLine(String.Format("SELECT {0} ", QueryArgs['select']))
+        Else 
+            sb.AppendLine("SELECT * ") 
+        EndIf 
+
+        If QueryArgs.ContainsKey('from') 
+            sb.AppendLine(String.Format("FROM {0} ", QueryArgs['from']))
+        Else 
+            Throw *New ArgumentException("'from' key required to create SQL")
+        EndIf 
+         
+        If QueryArgs.ContainsKey('where') 
+            sb.AppendLine(String.Format("WHERE {0} ", QueryArgs['where']))
+        EndIf 
+
+        If QueryArgs.ContainsKey('orderby') 
+            sb.AppendLine(String.Format("ORDER BY {0} ", QueryArgs['orderby']))
+        Else 
+            Throw *New ArgumentException("'orderby' key required to create SQL")
+        EndIf 
+
+        sb.AppendLine('LIMIT {limit} ')
+        sb.AppendLine('OFFSET {offset} ')
+
+        sb.AppendLine(') SELECT * FROM result ) WITH DATA')
+        LeaveSr sb.ToString()
+    EndFunc
+
+    BegFunc GenerateUniqueObjectId Type(*Char) Len(10) Access(*Public) Shared(*Yes) 
+        DclFld Id Type(*Char) Len(10)
+
+        DclFld Options Type(GenerationOptions) New()
+        Options.Length = 10
+        // ShortId needs at least 50 unique characters. 
+        ShortId.SetCharacters('ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890$#@abcdefghijklmnopqrstuvwxyz')
+
+        Id = ShortId.Generate(Options).ToUpper()
+        // Result cannot contain _, -, start with a digit
+        DoWhile Id.Contains('_') OR Id.Contains('-') OR Regex.IsMatch(Id, "^\d") 
+            Id = ShortId.Generate(Options).ToUpper()
+        EndDo             
+
+        LeaveSr Id
+    EndFunc
+
+
+
+EndClass

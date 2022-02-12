@@ -40,7 +40,7 @@ BegClass PagedDataHub Access(*Public)
 
     BegSr ReadPageData Access(*Public) 
         DclSrParm TargetLibrary Type(*String)   // rp_data
-        DclSrParm SchemaFile Type(*String)      // examples/cmastnew  
+        // DclSrParm SchemaFile Type(*String)      // examples/cmastnew  
         DclSrParm PageSize Type(*Integer4)      // 10 
         DclSrParm PageNumber Type(*Integer4)    // 1
         DclSrParm Sql Type(*String) 
@@ -54,7 +54,8 @@ BegClass PagedDataHub Access(*Public)
         *This.DGDB.Open()
 
         sw.Start()
-        cargo = PagedData.PerformPageQuery(DGDB, TargetLibrary, SchemaFile, Sql, PageSize, PageNumber, IBMiLibrary, IBMiPgmToCall) 
+        //cargo = PagedData.PerformPageQuery(DGDB, TargetLibrary, SchemaFile, Sql, PageSize, PageNumber, IBMiLibrary, IBMiPgmToCall) 
+        cargo = PagedData.PerformPageQuery(DGDB, TargetLibrary, Sql, PageSize, PageNumber, IBMiLibrary, IBMiPgmToCall) 
         sw.Stop()
 
         dgfr = *New ASNA.DataGateHelper.DGFileReader(DGDB)

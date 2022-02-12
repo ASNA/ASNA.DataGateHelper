@@ -50,7 +50,7 @@
       <SubType>
       </SubType>
     </Compile>
-    <Compile Include="DataGateHelper.vr">
+    <Compile Include="DGFileReaderr.vr">
       <SubType>
       </SubType>
     </Compile>
@@ -76,6 +76,10 @@
     </Compile>
     <Compile Include="Properties\AssemblyInfo.vr" />
     <Compile Include="PagedDataHub.vr">
+      <SubType>
+      </SubType>
+    </Compile>
+    <Compile Include="Utility.vr">
       <SubType>
       </SubType>
     </Compile>
