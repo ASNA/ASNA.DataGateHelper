@@ -66,19 +66,11 @@
       <SubType>
       </SubType>
     </Compile>
-    <Compile Include="PageCargo.vr">
-      <SubType>
-      </SubType>
-    </Compile>
     <Compile Include="PagedData.vr">
       <SubType>
       </SubType>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.vr" />
-    <Compile Include="PagedDataHub.vr">
-      <SubType>
-      </SubType>
-    </Compile>
     <Compile Include="Utility.vr">
       <SubType>
       </SubType>

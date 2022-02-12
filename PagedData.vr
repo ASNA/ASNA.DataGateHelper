@@ -1,20 +1,27 @@
 ﻿Using System
 Using System.Text
 Using System.Collections.Generic
+Using System.Diagnostics
 
 DclNamespace ASNA.DataGateHelper
 
 BegClass PagedData
+    DclDB DGDB  DBName('*Public/Leyland') 
+
     DclConst SUCCESS Value(0) 
 
-    DclProp ReturnedSQLCode Type(*String) 
-    DclProp ReturnedSQLState Type(*String)  
-    DclProp MessageText Type(*String) 
+    DclFld dgfr Type(ASNA.DataGateHelper.DGFileReader) WithEvents(*Yes)
 
-    DclProp UniqueObjectId Type(*String) Access(*Public) 
-    DclProp LibraryName Type(*String)  Access(*Public) 
-    
-    DclProp RowsRead Type(*Integer4) Access(*Public) 
+    DclFld MoreRecords Type(*Boolean) Access(*Public) 
+    DclFld MillisecondsToCreateWorkFile Type(*Integer4) Access(*Public)
+    DclFld MillisecondsToReadWorkFile Type(*Integer4) Access(*Public)
+
+    DclFld ReturnedSQLCode Type(*String) 
+    DclFld ReturnedSQLState Type(*String)  
+    DclFld MessageText Type(*String) 
+
+    DclFld LibraryName Type(*String)   
+    DclFld RowsRead Type(*Integer4)  
     
     DclFld iSql Type(IBMiSqlPage)  
     
@@ -22,79 +29,94 @@ BegClass PagedData
         DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.DataBase) 
         DclSrParm LibraryName Type(*String) 
         DclSrParm ProgramLibrary Type(*String) 
-        DclSrParm RPGProgramToCall Type(*String) 
+        DclSrParm RPGProgramToCall Type(*String)
+        DclSrParm CustomClassType Type(Type)    // *TypeOf(Customer) 
+
+        *This.DGDB = DGDB 
+        Connect DGDB 
 
         *This.LibraryName = LibraryName 
+
         *This.iSql = *New IBMiSqlPage(DGDB, ProgramLibrary, RPGProgramToCall) 
+        dgfr = *New ASNA.DataGateHelper.DGFileReader(DGDB)
+        dgfr.CustomClassType = CustomClassType
     EndConstructor 
 
-    BegSr WritePage Access(*Public) 
-        DclSrParm LibraryName Type(*String)
+    DclEvent AfterRowRead
+        DclSrParm Sender Type(*Object) 
+        DclSrParm e Type(ASNA.DataGateHelper.AfterRowReadArgs)
+
+    BegSr WriteThenReadTempFile Access(*Public) 
+        DclSrParm PageSize Type(*Integer4) 
+        DclSrParm Page Type(*Integer4) 
+        DclSrParm Sql Type(*String) 
+
+        DclFld UniqueObjectId Type(*String) 
+
+        UniqueObjectId = Utility.GenerateUniqueObjectId() 
+
+        WriteTempFile(UniqueObjectId, PageSize, Page, Sql) 
+        ReadTempFile(UniqueObjectId, PageSize) 
+    EndSr
+
+    BegSr WriteTempFile Access(*Public)
+        DclSrParm UniqueObjectId Type(*String) 
         DclSrParm PageSize Type(*Integer4) 
         DclSrParm Page Type(*Integer4) 
         DclSrParm Sql Type(*String) 
 
         DclFld ErrorCode Type(*Integer4) 
         DclFld Offset Type(*Integer4) 
- 
-        *This.UniqueObjectId = Utility.GenerateUniqueObjectId() 
+        DclFld sw Type(StopWatch) New() 
 
         Offset = (PageSize * Page) - PageSize
-        Sql = Sql.Replace('{libraryName}', LibraryName)
-        Sql = Sql.Replace('{uniqueObjectId}', *This.UniqueObjectId)
+        Sql = Sql.Replace('{libraryName}', *This.LibraryName)
+        Sql = Sql.Replace('{uniqueObjectId}', UniqueObjectId)
         
         // Read one more row than requested. The presence of the +1 row will 
         // later be used to determine if more records are avaiable.
         Sql = Sql.Replace('{limit}', (PageSize + 1).ToString())
         Sql = Sql.Replace('{offset}', Offset.ToString())
 
+        sw.Start()
         ErrorCode = ISql.Call(Sql)
+        sw.Stop() 
+        *This.MillisecondsToCreateWorkFile =  sw.ElapsedMilliseconds
+
         *This.ReturnedSQLCode = ISql.ReturnedSQLCode
         *This.ReturnedSQLState = ISql.ReturnedSQLState 
         *This.MessageText = ISql.MessageText.Trim() 
         
         If ErrorCode <> SUCCESS
-          //  *This.AssignSQLInfo()
             Throw *New ApplicationException(String.Format("ERROR calling IBM i program. SQLCode={0} SQLState={1} Message={2}", +
                                                           *This.ReturnedSQLCode, *This.ReturnedSQLState, *This.MessageText)) 
             LeaveSr
         EndIf
 
         *This.RowsRead = iSql.RowsCount
-        //*This.AssignSQLInfo()
      EndSr
 
-//    BegSr AssignSQLInfo Access(*Public) 
-//        *This.ReturnedSQLCode = ISql.ReturnedSQLCode
-//        *This.ReturnedSQLState = ISql.ReturnedSQLState 
-//        *This.MessageText = ISql.MessageText.Trim() 
-//    EndSr
-
-    BegFunc PerformPageQuery Type(PageCargo) Access(*Public) Shared(*Yes)   
-        DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.DataBase) 
-        DclSrParm TargetLibrary Type(*String) 
-        DclSrParm Sql Type(*String) 
+    BegSr ReadTempFile Access(*Public)
+        DclSrParm UniqueObjectId Type(*String) 
         DclSrParm PageSize Type(*Integer4) 
-        DclSrParm Page Type(*Integer4) 
-        DclSrparm ProgramLibrary Type(*String) 
-        DclSrparm RPGProgramToCall Type(*String) 
+
+        DclFld sw Type(StopWatch) New() 
         
-        DclFld pd Type(PagedData) 
-        
-        pd = *New PagedData(DGDB, TargetLibrary, ProgramLibrary, RPGProgramToCall) 
+        sw.Start()
 
-        pd.WritePage(TargetLibrary, PageSize, Page, Sql) 
+        dgfr.ReadEntireFile(*This.LibraryName, UniqueObjectId)
 
-        LeaveSr *New PageCargo(pd.RowsRead, pd.UniqueObjectId)
-    EndFunc 
+        sw.Stop() 
+        *This.MillisecondsToReadWorkFile = sw.ElapsedMilliseconds
 
+        *This.MoreRecords = NOT (*This.RowsRead <= PageSize)
+    EndSr 
 
+    BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
+        DclSrParm Sender Type(*Object)
+        DclSrParm e Type(ASNA.DataGateHelper.AfterRowReadArgs) 
 
-
-
-
-
-
-
+        *This.AfterRowRead(*This, e)
+    EndSr
 
 EndClass
