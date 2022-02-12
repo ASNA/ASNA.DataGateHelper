@@ -13,6 +13,7 @@ BegClass PagedData
     DclFld dgfr Type(ASNA.DataGateHelper.DGFileReader) WithEvents(*Yes)
 
     DclFld MoreRecords Type(*Boolean) Access(*Public) 
+    DclFld RowsRead Type(*Integer4) Access(*Public)  
     DclFld MillisecondsToCreateWorkFile Type(*Integer4) Access(*Public)
     DclFld MillisecondsToReadWorkFile Type(*Integer4) Access(*Public)
 
@@ -20,9 +21,10 @@ BegClass PagedData
     DclFld ReturnedSQLState Type(*String)  
     DclFld MessageText Type(*String) 
 
+
     DclFld LibraryName Type(*String)   
-    DclFld RowsRead Type(*Integer4)  
-    
+    DclFld PageSize Type(*Integer4) 
+       
     DclFld iSql Type(IBMiSqlPage)  
     
     BegConstructor Access(*Public) 
@@ -53,6 +55,8 @@ BegClass PagedData
 
         DclFld UniqueObjectId Type(*String) 
 
+        *This.PageSize = PageSize 
+
         UniqueObjectId = Utility.GenerateUniqueObjectId() 
 
         WriteTempFile(UniqueObjectId, PageSize, Page, Sql) 
@@ -79,6 +83,7 @@ BegClass PagedData
         Sql = Sql.Replace('{offset}', Offset.ToString())
 
         sw.Start()
+        // Call RPG program object to create temp work file with SQL.
         ErrorCode = ISql.Call(Sql)
         sw.Stop() 
         *This.MillisecondsToCreateWorkFile =  sw.ElapsedMilliseconds
@@ -104,6 +109,8 @@ BegClass PagedData
         
         sw.Start()
 
+        // Read the entire temp work file raising the 
+        // OnAfterRowRead event for each record read. 
         dgfr.ReadEntireFile(*This.LibraryName, UniqueObjectId)
 
         sw.Stop() 
@@ -116,7 +123,46 @@ BegClass PagedData
         DclSrParm Sender Type(*Object)
         DclSrParm e Type(ASNA.DataGateHelper.AfterRowReadArgs) 
 
-        *This.AfterRowRead(*This, e)
+        If e.CurrentRowCounter <= *This.PageSize
+            *This.AfterRowRead(*This, e)
+        EndIf 
     EndSr
+
+    BegFunc CreateSQL Type(*String) Access(*Public) Shared(*Yes)         
+        DclSrParm QueryArgs Type(Dictionary (*Of *String, *String)) 
+
+        DclFld sb Type(StringBuilder) New()
+                                                 
+        sb.AppendLine('CREATE TABLE {libraryName}/{uniqueObjectId} as (' ) 
+        sb.AppendLine('WITH result AS ( ')
+
+        If QueryArgs.ContainsKey('select') 
+            sb.AppendLine(String.Format("SELECT {0} ", QueryArgs['select']))
+        Else 
+            sb.AppendLine("SELECT * ") 
+        EndIf 
+
+        If QueryArgs.ContainsKey('from') 
+            sb.AppendLine(String.Format("FROM {0} ", QueryArgs['from']))
+        Else 
+            Throw *New ArgumentException("'from' key required to create SQL")
+        EndIf 
+         
+        If QueryArgs.ContainsKey('where') 
+            sb.AppendLine(String.Format("WHERE {0} ", QueryArgs['where']))
+        EndIf 
+
+        If QueryArgs.ContainsKey('orderby') 
+            sb.AppendLine(String.Format("ORDER BY {0} ", QueryArgs['orderby']))
+        Else 
+            Throw *New ArgumentException("'orderby' key required to create SQL")
+        EndIf 
+
+        sb.AppendLine('LIMIT {limit} ')
+        sb.AppendLine('OFFSET {offset} ')
+
+        sb.AppendLine(') SELECT * FROM result ) WITH DATA')
+        LeaveSr sb.ToString()
+    EndFunc
 
 EndClass
