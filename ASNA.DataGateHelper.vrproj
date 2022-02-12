@@ -34,6 +34,9 @@
     <Reference Include="ASNA.Runtime, Version=15.0.47.0, Culture=neutral, PublicKeyToken=d7106be54d30c861">
       <RequiredTargetFramework>4.0</RequiredTargetFramework>
     </Reference>
+    <Reference Include="shortid">
+      <HintPath>..\..\..\..\Desktop\shortid.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Web">
@@ -43,7 +46,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DataGateDB.vr">
+      <SubType>
+      </SubType>
+    </Compile>
     <Compile Include="DataGateHelper.vr">
+      <SubType>
+      </SubType>
+    </Compile>
+    <Compile Include="IBMiCmdExec.vr">
+      <SubType>
+      </SubType>
+    </Compile>
+    <Compile Include="IBMiSqlPage.vr">
       <SubType>
       </SubType>
     </Compile>
@@ -51,7 +66,19 @@
       <SubType>
       </SubType>
     </Compile>
+    <Compile Include="PageCargo.vr">
+      <SubType>
+      </SubType>
+    </Compile>
+    <Compile Include="PagedData.vr">
+      <SubType>
+      </SubType>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.vr" />
+    <Compile Include="PagedDataHub.vr">
+      <SubType>
+      </SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Properties\" />

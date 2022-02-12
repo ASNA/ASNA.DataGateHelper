@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1300
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{A99171F4-43ED-48FC-978B-9193EDE4E466}") = "ASNA.DataGateHelper", "ASNA.DataGateHelper.vrproj", "{711734A5-13FA-4FDA-8B51-FFB43C758147}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{711734A5-13FA-4FDA-8B51-FFB43C758147}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{711734A5-13FA-4FDA-8B51-FFB43C758147}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{711734A5-13FA-4FDA-8B51-FFB43C758147}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{711734A5-13FA-4FDA-8B51-FFB43C758147}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {74D3E8C7-B755-4A93-BE10-54C538FA29DE}
+	EndGlobalSection
+EndGlobal

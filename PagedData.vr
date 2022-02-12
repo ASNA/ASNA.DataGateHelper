@@ -1,0 +1,154 @@
+﻿Using System
+Using System.Text
+Using System.Collections.Generic
+Using ShortId 
+Using ShortId.Configuration 
+Using System.Text.RegularExpressions
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass PagedData
+    DclConst SUCCESS Value(0) 
+
+    DclProp ReturnedSQLCode Type(*String) 
+    DclProp ReturnedSQLState Type(*String)  
+    DclProp MessageText Type(*String) 
+
+    DclProp UniqueObjectId Type(*String) Access(*Public) 
+    DclProp LibraryName Type(*String)  Access(*Public) 
+    DclProp SchemaLibraryFile Type(*String)  Access(*Public) 
+    
+    DclProp RowsRead Type(*Integer4) Access(*Public) 
+    
+    DclFld iSql Type(IBMiSqlPage)  
+    
+    BegConstructor Access(*Public) 
+        DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.DataBase) 
+        DclSrParm LibraryName Type(*String) 
+        DclSrParm SchemaLibraryFile Type(*String) 
+        DclSrParm ProgramLibrary Type(*String) 
+        DclSrParm RPGProgramToCall Type(*String) 
+
+        *This.LibraryName = LibraryName 
+        *This.SchemaLibraryFile = SchemaLibraryFile
+        *This.iSql = *New IBMiSqlPage(DGDB, ProgramLibrary, RPGProgramToCall) 
+    EndConstructor 
+
+    BegSr WritePage Access(*Public) 
+        DclSrParm LibraryName Type(*String)
+        DclSrParm PageSize Type(*Integer4) 
+        DclSrParm Page Type(*Integer4) 
+        DclSrParm Sql Type(*String) 
+
+        DclFld ErrorCode Type(*Integer4) 
+        DclFld Offset Type(*Integer4) 
+ 
+        *This.UniqueObjectId = GenerateUniqueObjectId() 
+
+        Offset = (PageSize * Page) - PageSize
+        Sql = Sql.Replace('{libraryName}', LibraryName)
+        Sql = Sql.Replace('{uniqueObjectId}', *This.UniqueObjectId)
+        
+        // Read one more row than requested. The presence of the +1 row will 
+        // later be used to determine if more records are avaiable.
+        Sql = Sql.Replace('{limit}', (PageSize + 1).ToString())
+        Sql = Sql.Replace('{offset}', Offset.ToString())
+
+        ErrorCode = *This.GetQueryByPage(Sql)        
+        If ErrorCode <> SUCCESS
+            *This.AssignSQLInfo()
+            Throw *New ApplicationException(String.Format("ERROR calling IBM i program. SQLCode={0} SQLState={1} Message={2}", +
+                                                          *This.ReturnedSQLCode, *This.ReturnedSQLState, *This.MessageText)) 
+            LeaveSr
+        EndIf
+
+        *This.RowsRead = iSql.RowsCount
+        *This.AssignSQLInfo()
+     EndSr
+
+    BegSr AssignSQLInfo Access(*Public) 
+        *This.ReturnedSQLCode = ISql.ReturnedSQLCode
+        *This.ReturnedSQLState = ISql.ReturnedSQLState 
+        *This.MessageText = ISql.MessageText.Trim() 
+    EndSr
+
+    BegFunc GetQueryByPage Type(*Integer4) Access(*Public)
+        DclSrParm Sql Type(*String) 
+
+        LeaveSr ISql.Call(Sql) 
+    EndFunc
+
+    BegFunc GenerateUniqueObjectId Type(*Char) Len(10) 
+        DclFld Id Type(*Char) Len(10)
+
+        DclFld Options Type(GenerationOptions) New()
+        Options.Length = 10
+        // ShortId needs at least 50 unique characters. 
+        ShortId.SetCharacters('ABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890$#@abcdefghijklmnopqrstuvwxyz')
+
+        Id = ShortId.Generate(Options).ToUpper()
+        // Result cannot contain _, -, start with a digit
+        DoWhile Id.Contains('_') OR Id.Contains('-') OR Regex.IsMatch(Id, "^\d") 
+            Id = ShortId.Generate(Options).ToUpper()
+        EndDo             
+
+        LeaveSr Id
+    EndFunc
+
+    BegFunc PerformPageQuery Type(PageCargo) Access(*Public) Shared(*Yes)   
+        DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.DataBase) 
+        DclSrParm TargetLibrary Type(*String) 
+        DclSrParm SchemaLibraryFile Type(*String) 
+        DclSrParm Sql Type(*String) 
+        DclSrParm PageSize Type(*Integer4) 
+        DclSrParm Page Type(*Integer4) 
+        DclSrparm ProgramLibrary Type(*String) 
+        DclSrparm RPGProgramToCall Type(*String) 
+        
+        DclFld pd Type(PagedData) 
+        
+        pd = *New PagedData(DGDB, TargetLibrary, SchemaLibraryFile, ProgramLibrary, RPGProgramToCall) 
+
+        pd.WritePage(TargetLibrary, PageSize, Page, Sql) 
+
+        LeaveSr *New PageCargo(pd.RowsRead, pd.UniqueObjectId)
+    EndFunc 
+
+    BegFunc CreateSQL Type(*String) Access(*Public) Shared(*Yes)         
+        DclSrParm QueryArgs Type(Dictionary (*Of *String, *String)) 
+
+        DclFld sb Type(StringBuilder) New()
+                                                 
+        sb.AppendLine('CREATE TABLE {libraryName}/{uniqueObjectId} as (' ) 
+        sb.AppendLine('WITH result AS ( ')
+
+        If QueryArgs.ContainsKey('select') 
+            sb.AppendLine(String.Format("SELECT {0} ", QueryArgs['select']))
+        Else 
+            sb.AppendLine("SELECT * ") 
+        EndIf 
+
+        If QueryArgs.ContainsKey('from') 
+            sb.AppendLine(String.Format("FROM {0} ", QueryArgs['from']))
+        Else 
+            Throw *New ArgumentException("'from' key required to create SQL")
+        EndIf 
+         
+        If QueryArgs.ContainsKey('where') 
+            sb.AppendLine(String.Format("WHERE {0} ", QueryArgs['where']))
+        EndIf 
+
+        If QueryArgs.ContainsKey('orderby') 
+            sb.AppendLine(String.Format("ORDER BY {0} ", QueryArgs['orderby']))
+        Else 
+            Throw *New ArgumentException("'orderby' key required to create SQL")
+        EndIf 
+
+        sb.AppendLine('LIMIT {limit} ')
+        sb.AppendLine('OFFSET {offset} ')
+
+        sb.AppendLine(') SELECT * FROM result ) WITH DATA')
+        LeaveSr sb.ToString()
+    EndFunc
+
+EndClass

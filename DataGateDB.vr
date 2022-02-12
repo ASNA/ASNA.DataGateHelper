@@ -1,0 +1,29 @@
+﻿Using System
+Using System.Text
+Using ASNA.DataGate.Client
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass DataGateDB Access(*Public)
+    DclDB DGDB
+
+    BegConstructor Access(*Public) 
+        DclSrParm DBName Type(*String) 
+
+        *This.DGDB.DBName = DBName 
+        Connect DGDB
+    EndConstructor 
+
+    BegFunc GetConnectionForAVR Type(ASNA.VisualRPG.Runtime.Database) Access(*Public)  
+        LeaveSr DGDB 
+    EndFunc 
+
+    BegFunc GetConnectionForDCS Type(AdgConnection) Access(*Public) 
+        LeaveSr DGDB.Connection
+    EndFunc 
+
+    BegSr Disconnect Access(*Public)
+        Disconnect *This.DGDB 
+    EndSr 
+
+EndClass

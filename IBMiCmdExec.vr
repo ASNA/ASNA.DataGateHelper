@@ -1,0 +1,37 @@
+﻿Using System
+Using System.Text
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass IBMiCmdExec Access(*Public)
+
+    DclDB DGDB 
+    
+    BegConstructor Access(*Public) 
+        DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.DataBase) 
+
+        *This.DGDB = DGDB
+        Connect DGDB 
+    EndConstructor 
+
+    BegSr Call Access(*Public)         
+        DclSrParm CmdLine Type(*String) 
+
+
+        DclFld Cmd Type(*Char) Len(512) 
+        DclFld CmdLength Type(*Packed) Len(15,5) 
+
+        Cmd = CmdLine.Trim()
+        CmdLength = CmdLine.Trim().Length() 
+
+        Try
+            Call 'qcmdexc' DB(DGDB) 
+            DclParm Cmd Type(*Char) Len(512) 
+            DclParm CmdLength Type(*Packed) Len(15,5) 
+        Catch ex Type(Exception) 
+            Throw *New ApplicationException(String.Format("Error calling IBM i pgm object '{0}': {1}", 'qcmdexc', ex.Message))  
+        EndTry 
+
+    EndSr 
+
+EndClass

@@ -1,0 +1,89 @@
+﻿Using System
+Using System.Collections.Generic
+Using System.Diagnostics
+Using System.Text
+Using ASNA.DataGate.Client
+Using ASNA.DataGate.Common
+Using ASNA.DataGate.Providers
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass PagedDataHub Access(*Public)
+	DclDB DGDB Access(*Protected)
+
+    DclFld dgfr Type(ASNA.DataGateHelper.DGFileReader) WithEvents(*Yes)
+    DclFld MoreRecords Type(*Boolean) Access(*Public) 
+    DclFld Milliseconds Type(*Integer4) Access(*Public) 
+    DclFld IBMiLibrary Type(*String) Inz('rpzimmie')
+    DclFld IBMiPgmToCall Type(*String) Inz('sqlimmed')
+
+    DclFld Sql Type(*String) 
+  
+    // Constructor with AVR DB connection only.
+    BegConstructor Access(*Public) 
+        DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.Database)
+
+        *This.DGDB = DGDB
+    EndConstructor 
+
+    BegConstructor Access(*Public) 
+        DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.Database)
+        DclSrParm IBMiLibrary Type(*String) 
+        DclSrParm IBMiPgmToCall Type(*String) 
+
+        *This.DGDB = DGDB
+        *This.IBMiLibrary = IBMiLibrary
+        *This.IBMiPgmToCall = IBMiPgmToCall
+    EndConstructor 
+
+    DclEvent AfterRowRead
+        DclSrParm Sender Type(*Object) 
+        DclSrParm e Type(ASNA.DataGateHelper.AfterRowReadArgs)
+
+    BegSr CreateSql Access(*Public) 
+        DclSrParm QueryArgs Type(Dictionary (*Of *String, *String))
+
+        *This.Sql = PagedData.CreateSQL(QueryArgs)
+    EndSr 
+
+    BegSr GetPage Access(*Public) 
+        DclSrParm TargetLibrary Type(*String)   // rp_data
+        DclSrParm SchemaFile Type(*String)      // examples/cmastnew  
+        DclSrParm PageSize Type(*Integer4)      // 10 
+        DclSrParm PageNumber Type(*Integer4)    // 1
+        DclSrParm CustomClassType Type(Type)    // *TypeOf(Customer) 
+
+        DclFld sql Type(*String) 
+        DclFld PageNumber Type(*Integer4) 
+        DclFld cargo Type(PageCargo) 
+
+        DclFld sw Type(StopWatch) New() 
+        
+        *This.DGDB.Open()
+
+        sw.Start()
+        cargo = PagedData.PerformPageQuery(DGDB, TargetLibrary, SchemaFile, *This.Sql, PageSize, PageNumber, IBMiLibrary, IBMiPgmToCall) 
+        sw.Stop()
+
+        dgfr = *New ASNA.DataGateHelper.DGFileReader(DGDB)
+        dgfr.CustomClassType = CustomClassType
+
+        dgfr.ReadEntireFile(TargetLibrary, cargo.CurrentTempFile)
+
+        *This.MoreRecords = NOT (cargo.RowsRead <= PageSize)
+        *This.Milliseconds = sw.ElapsedMilliseconds
+
+        Disconnect DGDB
+    EndSr
+
+    BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
+        DclSrParm Sender Type(*Object)
+        DclSrParm e Type(ASNA.DataGateHelper.AfterRowReadArgs) 
+
+        *This.AfterRowRead(*This, e)
+    EndSr
+
+
+EndClass
+
+

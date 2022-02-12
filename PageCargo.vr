@@ -1,0 +1,21 @@
+﻿Using System
+Using System.Text
+
+DclNamespace ASNA.DataGateHelper
+
+// Class returned from PageData.PerformPageQuery method.
+
+BegClass PageCargo
+    DclProp RowsRead Type(*Integer4) Access(*Public)
+    DclProp CurrentTempFile Type(*String) Access(*Public) 
+
+    BegConstructor Access(*Public) 
+        DclSrParm RowsRead Type(*Integer4) 
+        DclSrParm CurrentTempFile Type(*String)
+        
+        *This.RowsRead = RowsRead
+        *This.CurrentTempFile = CurrentTempFile
+    EndConstructor 
+EndClass
+
+

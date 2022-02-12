@@ -1,0 +1,63 @@
+﻿Using System
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass IBMiSqlPage    
+    DclDB DGDB 
+    
+    DclFld ProgramLibrary Type(*String) 
+    DclFld RPGProgramToCall Type(*String) 
+
+    BegConstructor Access(*Public) 
+        DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.DataBase) 
+        DclSrParm ProgramLibrary Type(*String) 
+        DclSrParm RPGProgramToCall Type(*String) 
+
+        *This.DGDB = DGDB
+        *This.ProgramLibrary = ProgramLibrary
+        *This.RPGProgramToCall = RPGProgramToCall
+    EndConstructor 
+
+    DclFld Sql1 Type(*Char) Len(1024) Access(*Public) 
+    DclFld MessageId Type(*char) Len(10) Access(*Public) 
+    DclFld MessageId1 Type(*char) Len(7) Access(*Public)  
+    DclFld MessageId2 Type(*char) Len(10) Access(*Public) 
+    DclFld MessageLength Type(*Integer4) Access(*Public)  
+    DclFld MessageText Type(*char) Len(1000) Access(*Public) 
+    DclFld ReturnedSQLCode Type(*char) Len(5) Access(*Public) 
+    DclFld ReturnedSQLState Type(*char) Len(5) Access(*Public) 
+    DclFld RowsCount Type(*Integer4) Access(*Public)  
+
+    BegFunc Call Type(*Integer4)  Access(*Public) 
+        DclSrParm Sql Type(*String) 
+
+        DclFld LibraryProgram Type(*String) 
+        
+        LibraryProgram = String.Format('{0}/{1}', *This.ProgramLibrary, *This.RPGProgramToCall) 
+        
+        Sql1 = Sql
+
+        Try 
+            Call LibraryProgram DB(DGDB) 
+            DclParm Sql1
+            DclParm MessageId 
+            DclParm MessageId1 
+            DclParm MessageId2 
+            DclParm MessageLength 
+            DclParm MessageText 
+            DclParm ReturnedSQLCode
+            DclParm ReturnedSQLState
+            DclParm RowsCount 
+        Catch ex Type(Exception) 
+            Throw *New ApplicationException(String.Format("Error calling IBM i pgm object '{0}': {1}", LibraryProgram, ex.Message))  
+        EndTry 
+        
+        If ReturnedSQLState.Substring(0,2) = '00' OR +  
+           ReturnedSQLState.Substring(0,2) = '01' 
+           LeaveSr 0 
+        Else
+           LeaveSr -1
+        EndIf 
+    EndFunc 
+
+EndClass
