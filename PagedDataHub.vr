@@ -17,8 +17,6 @@ BegClass PagedDataHub Access(*Public)
     DclFld IBMiLibrary Type(*String) Inz('rpzimmie')
     DclFld IBMiPgmToCall Type(*String) Inz('sqlimmed')
 
-    DclFld Sql Type(*String) 
-  
     // Constructor with AVR DB connection only.
     BegConstructor Access(*Public) 
         DclSrParm DGDB Type(ASNA.VisualRPG.Runtime.Database)
@@ -40,20 +38,14 @@ BegClass PagedDataHub Access(*Public)
         DclSrParm Sender Type(*Object) 
         DclSrParm e Type(ASNA.DataGateHelper.AfterRowReadArgs)
 
-    BegSr CreateSql Access(*Public) 
-        DclSrParm QueryArgs Type(Dictionary (*Of *String, *String))
-
-        *This.Sql = PagedData.CreateSQL(QueryArgs)
-    EndSr 
-
-    BegSr GetPage Access(*Public) 
+    BegSr ReadPageData Access(*Public) 
         DclSrParm TargetLibrary Type(*String)   // rp_data
         DclSrParm SchemaFile Type(*String)      // examples/cmastnew  
         DclSrParm PageSize Type(*Integer4)      // 10 
         DclSrParm PageNumber Type(*Integer4)    // 1
+        DclSrParm Sql Type(*String) 
         DclSrParm CustomClassType Type(Type)    // *TypeOf(Customer) 
 
-        DclFld sql Type(*String) 
         DclFld PageNumber Type(*Integer4) 
         DclFld cargo Type(PageCargo) 
 
@@ -62,7 +54,7 @@ BegClass PagedDataHub Access(*Public)
         *This.DGDB.Open()
 
         sw.Start()
-        cargo = PagedData.PerformPageQuery(DGDB, TargetLibrary, SchemaFile, *This.Sql, PageSize, PageNumber, IBMiLibrary, IBMiPgmToCall) 
+        cargo = PagedData.PerformPageQuery(DGDB, TargetLibrary, SchemaFile, Sql, PageSize, PageNumber, IBMiLibrary, IBMiPgmToCall) 
         sw.Stop()
 
         dgfr = *New ASNA.DataGateHelper.DGFileReader(DGDB)
