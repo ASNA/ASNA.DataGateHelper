@@ -12,15 +12,14 @@ BegClass PagedData
 
     DclFld dgfr Type(ASNA.DataGateHelper.DGFileReader) WithEvents(*Yes)
 
-    DclFld MoreRecords Type(*Boolean) Access(*Public) 
-    DclFld RowsRead Type(*Integer4) Access(*Public)  
     DclFld MillisecondsToCreateWorkFile Type(*Integer4) Access(*Public)
     DclFld MillisecondsToReadWorkFile Type(*Integer4) Access(*Public)
+    DclFld MoreRecords Type(*Boolean) Access(*Public) 
+    DclFld RowsRead Type(*Integer4) Access(*Public)  
 
     DclFld ReturnedSQLCode Type(*String) 
     DclFld ReturnedSQLState Type(*String)  
     DclFld MessageText Type(*String) 
-
 
     DclFld LibraryName Type(*String)   
     DclFld PageSize Type(*Integer4) 

@@ -37,7 +37,7 @@ BegClass ListItemHelper Access(*Public)
         dgfr = *New DGFileReader(DGDB, BLOCKING_FACTOR)
         dgfr.ReadEntireFile(LibraryName, FileName) 
 
-        LeaveSr dgfr.RecordCount
+        LeaveSr dgfr.TotalRowsRead
     EndFunc 
     
     BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
