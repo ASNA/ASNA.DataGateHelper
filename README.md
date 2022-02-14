@@ -3,6 +3,16 @@
 
 This DLL targets .NET 4.7.2. Be sure any consuming projects are at least set to that version or higher. 
 
+
+The ASNA.DataGateHelper classes:
+
+* PagedData
+* IBMiSqlPage
+* IBMiCmdExec
+
+[are documented in this repo.](https://github.com/ASNA/paged-data-class-example)
+
+
 ## The DGFileReader and ListItemHelper classes
 
 The `DGFileReader` class uses the DataGate API to read any DataGate file from beginning to end. The primary use case of `DGFileReader` is to be able to open and read a file on demand in your AVR code without needing a compile-time `DclDiskFile.`

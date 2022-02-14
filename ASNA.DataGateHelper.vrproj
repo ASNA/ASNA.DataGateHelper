@@ -50,7 +50,7 @@
       <SubType>
       </SubType>
     </Compile>
-    <Compile Include="DGFileReaderr.vr">
+    <Compile Include="DGFileReader.vr">
       <SubType>
       </SubType>
     </Compile>
