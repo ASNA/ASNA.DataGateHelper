@@ -12,10 +12,10 @@ BegClass PagedData
 
     DclFld dgfr Type(ASNA.DataGateHelper.DGFileReader) WithEvents(*Yes)
 
-    DclFld MillisecondsToCreateWorkFile Type(*Integer4) Access(*Public)
-    DclFld MillisecondsToReadWorkFile Type(*Integer4) Access(*Public)
-    DclFld MoreRecords Type(*Boolean) Access(*Public) 
-    DclFld RowsRead Type(*Integer4) Access(*Public)  
+    DclProp MillisecondsToCreateWorkFile Type(*Integer4) Access(*Public) SetAccess(*Private)
+    DclProp MillisecondsToReadWorkFile Type(*Integer4) Access(*Public) SetAccess(*Private)
+    DclProp MoreRecords Type(*Boolean) Access(*Public) SetAccess(*Private) 
+    DclProp RowsRead Type(*Integer4) Access(*Public) SetAccess(*Private)  
 
     DclFld ReturnedSQLCode Type(*String) 
     DclFld ReturnedSQLState Type(*String)  
@@ -31,12 +31,14 @@ BegClass PagedData
         DclSrParm LibraryName Type(*String) 
         DclSrParm ProgramLibrary Type(*String) 
         DclSrParm RPGProgramToCall Type(*String)
-        DclSrParm CustomClassType Type(Type)    // *TypeOf(Customer) 
+        DclSrParm PageSize Type(*Integer4) 
+        DclSrParm CustomClassType Type(Type) 
 
         *This.DGDB = DGDB 
         Connect DGDB 
 
         *This.LibraryName = LibraryName 
+        *This.PageSize = PageSize 
 
         *This.iSql = *New IBMiSqlPage(DGDB, ProgramLibrary, RPGProgramToCall) 
         dgfr = *New ASNA.DataGateHelper.DGFileReader(DGDB)
@@ -48,23 +50,20 @@ BegClass PagedData
         DclSrParm e Type(ASNA.DataGateHelper.AfterRowReadArgs)
 
     BegSr WriteThenReadTempFile Access(*Public) 
-        DclSrParm PageSize Type(*Integer4) 
         DclSrParm Page Type(*Integer4) 
         DclSrParm Sql Type(*String) 
 
         DclFld UniqueObjectId Type(*String) 
 
-        *This.PageSize = PageSize 
 
         UniqueObjectId = Utility.GenerateUniqueObjectId() 
 
-        WriteTempFile(UniqueObjectId, PageSize, Page, Sql) 
-        ReadTempFile(UniqueObjectId, PageSize) 
+        WriteTempFile(UniqueObjectId, Page, Sql) 
+        ReadTempFile(UniqueObjectId) 
     EndSr
 
-    BegSr WriteTempFile Access(*Public)
+    BegSr WriteTempFile 
         DclSrParm UniqueObjectId Type(*String) 
-        DclSrParm PageSize Type(*Integer4) 
         DclSrParm Page Type(*Integer4) 
         DclSrParm Sql Type(*String) 
 
@@ -72,13 +71,13 @@ BegClass PagedData
         DclFld Offset Type(*Integer4) 
         DclFld sw Type(StopWatch) New() 
 
-        Offset = (PageSize * Page) - PageSize
+        Offset = (*This.PageSize * Page) - *This.PageSize
         Sql = Sql.Replace('{libraryName}', *This.LibraryName)
         Sql = Sql.Replace('{uniqueObjectId}', UniqueObjectId)
         
         // Read one more row than requested. The presence of the +1 row will 
         // later be used to determine if more records are avaiable.
-        Sql = Sql.Replace('{limit}', (PageSize + 1).ToString())
+        Sql = Sql.Replace('{limit}', (*This.PageSize + 1).ToString())
         Sql = Sql.Replace('{offset}', Offset.ToString())
 
         sw.Start()
@@ -100,9 +99,8 @@ BegClass PagedData
         *This.RowsRead = iSql.RowsCount
      EndSr
 
-    BegSr ReadTempFile Access(*Public)
+    BegSr ReadTempFile
         DclSrParm UniqueObjectId Type(*String) 
-        DclSrParm PageSize Type(*Integer4) 
 
         DclFld sw Type(StopWatch) New() 
         
@@ -114,8 +112,7 @@ BegClass PagedData
 
         sw.Stop() 
         *This.MillisecondsToReadWorkFile = sw.ElapsedMilliseconds
-
-        *This.MoreRecords = NOT (*This.RowsRead <= PageSize)
+        *This.MoreRecords = NOT (*This.RowsRead <= *This.PageSize)
     EndSr 
 
     BegSr OnAfterRowRead Event(dgfr.AfterRowRead) 
