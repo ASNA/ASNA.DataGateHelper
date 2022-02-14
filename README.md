@@ -1,8 +1,7 @@
 ## ANSA.DataGateHelper namespace
 
 
-This DLL targets .NET 4.7.2. Be sure any consuming projects are at least set to that version or higher. 
-
+>This class requires at least .NET Framework 4.7.2. Be sure your project is set to at least that .NET Framework level.
 
 The ASNA.DataGateHelper classes:
 
