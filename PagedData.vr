@@ -154,6 +154,10 @@ BegClass PagedData
     BegSr AddSQLOrderBy Access(*Public) 
         DclSrParm OrderByClause Type(*String) 
 
+        If Regex.IsMatch(OrderByClause, 'orderby', RegexOptions.IgnoreCase) 
+            Throw *New ArgumentException("SQL ORDER BY clause uses 'ORDERBY' not 'ORDER BY'")
+        EndIf 
+
         OrderByClause = RegEx.Replace(OrderByClause, "^\s*order\s+by", String.Empty, RegexOptions.IgnoreCase) 
         *This.SQLClauses.Add('orderby', OrderByClause) 
     EndSr
