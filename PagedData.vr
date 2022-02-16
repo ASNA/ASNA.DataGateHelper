@@ -1,5 +1,6 @@
 ﻿Using System
 Using System.Text
+Using System.Text.RegularExpressions
 Using System.Collections.Generic
 Using System.Diagnostics
 
@@ -23,6 +24,9 @@ BegClass PagedData
 
     DclFld LibraryName Type(*String)   
     DclFld PageSize Type(*Integer4) 
+
+    DclFld SQLClauses Type(Dictionary (*Of *String, *String)) New()
+
        
     DclFld iSql Type(IBMiSqlPage)  
     
@@ -51,10 +55,12 @@ BegClass PagedData
 
     BegSr WriteThenReadTempFile Access(*Public) 
         DclSrParm Page Type(*Integer4) 
-        DclSrParm Sql Type(*String) 
+
+        DclFld Sql  Type(*String) 
 
         DclFld UniqueObjectId Type(*String) 
 
+        Sql = *This.CreateSQL()
 
         UniqueObjectId = Utility.GenerateUniqueObjectId() 
 
@@ -124,32 +130,59 @@ BegClass PagedData
         EndIf 
     EndSr
 
-    BegFunc CreateSQL Type(*String) Access(*Public) Shared(*Yes)         
-        DclSrParm QueryArgs Type(Dictionary (*Of *String, *String)) 
+    BegSr AddSQLSelect Access(*Public) 
+        DclSrParm SelectClause Type(*String) 
+
+        SelectClause = RegEx.Replace(SelectClause, "^\s*select", String.Empty, RegexOptions.IgnoreCase) 
+        *This.SQLClauses.Add('select', SelectClause) 
+    EndSr
+
+    BegSr AddSQLFrom Access(*Public) 
+        DclSrParm FromClause Type(*String) 
+
+        FromClause = RegEx.Replace(FromClause, "^\s*from", String.Empty, RegexOptions.IgnoreCase) 
+        *This.SQLClauses.Add('from', FromClause) 
+    EndSr
+
+    BegSr AddSQLWhere Access(*Public) 
+        DclSrParm WhereClause Type(*String) 
+
+        WhereClause = RegEx.Replace(WhereClause, "^\s*where", String.Empty, RegexOptions.IgnoreCase) 
+        *This.SQLClauses.Add('where', WhereClause) 
+    EndSr
+
+    BegSr AddSQLOrderBy Access(*Public) 
+        DclSrParm OrderByClause Type(*String) 
+
+        OrderByClause = RegEx.Replace(OrderByClause, "^\s*order\s+by", String.Empty, RegexOptions.IgnoreCase) 
+        *This.SQLClauses.Add('orderby', OrderByClause) 
+    EndSr
+
+    BegFunc CreateSQL Type(*String)
 
         DclFld sb Type(StringBuilder) New()
                                                  
         sb.AppendLine('CREATE TABLE {libraryName}/{uniqueObjectId} as (' ) 
         sb.AppendLine('WITH result AS ( ')
 
-        If QueryArgs.ContainsKey('select') 
-            sb.AppendLine(String.Format("SELECT {0} ", QueryArgs['select']))
+        If *This.SQLClauses.ContainsKey('select') 
+            sb.AppendLine(String.Format("SELECT {0} ", *This.SQLClauses['select']))
         Else 
             sb.AppendLine("SELECT * ") 
         EndIf 
 
-        If QueryArgs.ContainsKey('from') 
-            sb.AppendLine(String.Format("FROM {0} ", QueryArgs['from']))
+        If *This.SQLClauses.ContainsKey('from') 
+            sb.AppendLine(String.Format("FROM {0} ", *This.SQLClauses['from']))
         Else 
             Throw *New ArgumentException("'from' key required to create SQL")
         EndIf 
          
-        If QueryArgs.ContainsKey('where') 
-            sb.AppendLine(String.Format("WHERE {0} ", QueryArgs['where']))
+        If *This.SQLClauses.ContainsKey('where') 
+            sb.AppendLine(String.Format("WHERE {0} ", *This.SQLClauses['where']))
         EndIf 
 
-        If QueryArgs.ContainsKey('orderby') 
-            sb.AppendLine(String.Format("ORDER BY {0} ", QueryArgs['orderby']))
+        If *This.SQLClauses.ContainsKey('orderby') 
+            sb.AppendLine(String.Format("ORDER BY {0} ", *This.SQLClauses['orderby']))
         Else 
             Throw *New ArgumentException("'orderby' key required to create SQL")
         EndIf 
