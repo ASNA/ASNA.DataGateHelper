@@ -1,0 +1,26 @@
+﻿Using System
+
+DclNamespace ASNA.DataGateHelper
+
+// Provides the `e` argument for the AfterRowRead event.
+BegClass AfterRowReadArgs Extends(System.EventArgs) Access(*Public)
+    DclFld DataRow Type(System.Data.DataRow) Access(*Public)  
+    DclArray FieldNames Type(*String) Rank(1) Access(*Public)
+    DclArray FieldTypes Type(*String) Rank(1) Access(*Public)
+    DclFld CurrentRowCounter Type(*Integer4) Access(*Public)
+    DclFld CancelRead Type(*Boolean) Access(*Public) 
+    DclFld CustomClassInstance Type(*Object) Access(*Public) 
+    
+    BegConstructor Access(*Public) 
+        DclSrParm DataRow  Type(System.Data.DataRow) 
+        DclSrParm FieldNames Type(*String) Rank(1)
+        DclSrParm FieldTypes Type(*String) Rank(1)
+        DclSrParm CurrentRowCounter Type(*Integer4) 
+        
+        *This.DataRow = DataRow
+        *This.FieldNames = FieldNames
+        *This.FieldTypes = FieldTypes
+        *This.CurrentRowCounter = CurrentRowCounter
+        *This.CancelRead = *False 
+    EndConstructor
+EndClass

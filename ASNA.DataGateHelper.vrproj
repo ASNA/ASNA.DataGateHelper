@@ -46,6 +46,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AfterRowReadArgs.vr">
+      <SubType>
+      </SubType>
+    </Compile>
     <Compile Include="DataGateDB.vr">
       <SubType>
       </SubType>
@@ -71,6 +75,10 @@
       </SubType>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.vr" />
+    <Compile Include="RowErrorArgs.vr">
+      <SubType>
+      </SubType>
+    </Compile>
     <Compile Include="Utility.vr">
       <SubType>
       </SubType>

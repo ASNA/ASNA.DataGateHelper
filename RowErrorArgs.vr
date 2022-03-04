@@ -1,0 +1,21 @@
+﻿Using System
+Using System.Text
+
+DclNamespace ASNA.DataGateHelper
+
+BegClass RowReadErrorArgs Extends(System.EventArgs) Access(*Public) 
+    DclFld FileName Type(*String) Access(*Public) 
+    DclFld RowNumber Type(*Integer4) Access(*Public) 
+    DclFld ErrorMessage Type(*String) Access(*Public)
+
+    BegConstructor Access(*Public)
+        DclSrParm FileName TYpe(*String) 
+        DclSrParm RowNumber Type(*Integer4)
+        DclSrParm ErrorMessage Type(*String) 
+
+        *THis.FileName = FileName 
+        *This.RowNumber = RowNumber
+        *This.ErrorMessage = ErrorMessage
+    EndConstructor 
+EndClass
+

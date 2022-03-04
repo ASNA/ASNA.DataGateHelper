@@ -52,6 +52,7 @@ BegClass DGFileReader Access(*Public)
         DclSrParm DBConnection Type(AdgConnection)
         DclSrParm BlockingFactor Type(*Integer4) 
 
+        DGDB.Open() 
         *This.DGDB = DBConnection 
 
         Init(BlockingFactor)
@@ -67,6 +68,7 @@ BegClass DGFileReader Access(*Public)
         DclSrParm DBConnection Type(ASNA.VisualRPG.Runtime.Database) 
         DclSrParm BlockingFactor Type(*Integer4) 
 
+        Connect DBConnection 
         *This.DGDB = DBConnection.Connection
 
         Init(BlockingFactor)
@@ -285,41 +287,3 @@ BegClass DGFileReader Access(*Public)
 
 EndClass
 
-BegClass RowReadErrorArgs Extends(System.EventArgs) Access(*Public) 
-    DclFld FileName Type(*String) Access(*Public) 
-    DclFld RowNumber Type(*Integer4) Access(*Public) 
-    DclFld ErrorMessage Type(*String) Access(*Public)
-
-    BegConstructor Access(*Public)
-        DclSrParm FileName TYpe(*String) 
-        DclSrParm RowNumber Type(*Integer4)
-        DclSrParm ErrorMessage Type(*String) 
-
-        *THis.FileName = FileName 
-        *This.RowNumber = RowNumber
-        *This.ErrorMessage = ErrorMessage
-    EndConstructor 
-EndClass
-
-// Provides the `e` argument for the AfterRowRead event.
-BegClass AfterRowReadArgs Extends(System.EventArgs) Access(*Public)
-    DclFld DataRow Type(System.Data.DataRow) Access(*Public)  
-    DclArray FieldNames Type(*String) Rank(1) Access(*Public)
-    DclArray FieldTypes Type(*String) Rank(1) Access(*Public)
-    DclFld CurrentRowCounter Type(*Integer4) Access(*Public)
-    DclFld CancelRead Type(*Boolean) Access(*Public) 
-    DclFld CustomClassInstance Type(*Object) Access(*Public) 
-    
-    BegConstructor Access(*Public) 
-        DclSrParm DataRow  Type(System.Data.DataRow) 
-        DclSrParm FieldNames Type(*String) Rank(1)
-        DclSrParm FieldTypes Type(*String) Rank(1)
-        DclSrParm CurrentRowCounter Type(*Integer4) 
-        
-        *This.DataRow = DataRow
-        *This.FieldNames = FieldNames
-        *This.FieldTypes = FieldTypes
-        *This.CurrentRowCounter = CurrentRowCounter
-        *This.CancelRead = *False 
-    EndConstructor
-EndClass
