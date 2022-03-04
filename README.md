@@ -12,7 +12,9 @@ The ASNA.DataGateHelper classes:
 [are documented in this repo.](https://github.com/ASNA/paged-data-class-example)
 
 
-## The DGFileReader and ListItemHelper classes
+## The DGFileReader class
+
+> [AVR and C# examples of the DGFileReader class available here.](https://github.com/ASNA/dgfilereader-cs-avr-examples)
 
 The `DGFileReader` class uses the DataGate API to read any DataGate file from beginning to end. The primary use case of `DGFileReader` is to be able to open and read a file on demand in your AVR code without needing a compile-time `DclDiskFile.`
 
@@ -154,7 +156,7 @@ The result is a uniquely-named table created in QTEMP with a page of full of dat
 
 Immediately after the program call AVR uses the `DGFileReader` class to populate a strongly-typed list which is then displayed on a Web page--all in about 500 milliseconds. The technique can also use SQL LIKE clause to fine-tune row selection. 
 
-### Populating a ListItemCollection 
+### The `ListItemHelper` class
 
 Along with the `DGFileReader` is a `ListItemHelper` class. This class provides a `LoadList` method that very quickly populates a [ListItemCollection](https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.webcontrols.listitemcollection?view=netframework-4.8) with [ListItems](https://docs.microsoft.com/en-us/dotnet/api/system.web.ui.webcontrols.listitem?view=netframework-4.8) for use with dropdown lists (in both Windows or Web apps.)
 
